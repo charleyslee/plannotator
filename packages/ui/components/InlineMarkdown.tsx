@@ -376,7 +376,7 @@ export const InlineMarkdown: React.FC<{
     if (match) {
       const alt = match[1];
       const src = match[2];
-      const imgSrc = /^https?:\/\//.test(src)
+      const imgSrc = /^(https?:\/\/|data:|blob:)/i.test(src)
         ? src
         : getImageSrc(src, imageBaseDir);
       parts.push(
@@ -397,25 +397,59 @@ export const InlineMarkdown: React.FC<{
       continue;
     }
 
-    // Links: [text](url)
-    match = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
-    if (match) {
-      const linkText = match[1];
-      const linkUrl = match[2];
+    // Links: [text](url) — url may contain balanced parens (e.g. Wikipedia
+    // /Function_(mathematics)). Plain `[^)]+` would truncate at the first
+    // inner close-paren, so we scan the destination manually tracking depth.
+    const linkParsed = (() => {
+      if (remaining[0] !== '[') return null;
+      let i = 1;
+      let depth = 1;
+      while (i < remaining.length && depth > 0) {
+        const ch = remaining[i];
+        if (ch === '\\' && i + 1 < remaining.length) { i += 2; continue; }
+        if (ch === '[') depth++;
+        else if (ch === ']') depth--;
+        if (depth === 0) break;
+        i++;
+      }
+      if (depth !== 0 || remaining[i + 1] !== '(') return null;
+      const textEnd = i;
+      let j = i + 2;
+      let parenDepth = 1;
+      while (j < remaining.length && parenDepth > 0) {
+        const ch = remaining[j];
+        if (ch === '\\' && j + 1 < remaining.length) { j += 2; continue; }
+        if (ch === '(') parenDepth++;
+        else if (ch === ')') { parenDepth--; if (parenDepth === 0) break; }
+        else if (ch === '\n') return null;
+        j++;
+      }
+      if (parenDepth !== 0) return null;
+      const linkText = remaining.slice(1, textEnd);
+      const linkUrl = remaining.slice(i + 2, j);
+      if (!linkText || !linkUrl) return null;
+      return { linkText, linkUrl, consumed: j + 1 };
+    })();
+    if (linkParsed) {
+      const { linkText, linkUrl, consumed } = linkParsed;
       const safeLinkUrl = sanitizeLinkUrl(linkUrl);
 
       // Dangerous protocol stripped — render as plain text, not a dead link
       if (safeLinkUrl === null) {
         parts.push(<span key={key++}>{linkText}</span>);
-        remaining = remaining.slice(match[0].length);
-        previousChar = match[0][match[0].length - 1] || previousChar;
+        remaining = remaining.slice(consumed);
+        previousChar = ')';
         continue;
       }
 
+      // Local doc: .md / .mdx / .html / .htm, optionally with #fragment.
+      // Fragment is stripped before handing to onOpenLinkedDoc (overlay has
+      // no anchor-scroll support today).
       const isLocalDoc =
-        /\.(mdx?|html?)$/i.test(linkUrl) &&
+        /\.(mdx?|html?)(#.*)?$/i.test(linkUrl) &&
         !linkUrl.startsWith("http://") &&
         !linkUrl.startsWith("https://");
+      const linkedDocPath = isLocalDoc ? linkUrl.replace(/#.*$/, '') : linkUrl;
 
       if (isLocalDoc && onOpenLinkedDoc) {
         parts.push(
@@ -424,7 +458,7 @@ export const InlineMarkdown: React.FC<{
             href={safeLinkUrl}
             onClick={(e) => {
               e.preventDefault();
-              onOpenLinkedDoc(linkUrl);
+              onOpenLinkedDoc(linkedDocPath);
             }}
             className="text-primary underline underline-offset-2 hover:text-primary/80 inline-flex items-center gap-1 cursor-pointer"
             title={`Open: ${linkUrl}`}
@@ -470,8 +504,8 @@ export const InlineMarkdown: React.FC<{
           </a>,
         );
       }
-      remaining = remaining.slice(match[0].length);
-      previousChar = match[0][match[0].length - 1] || previousChar;
+      remaining = remaining.slice(consumed);
+      previousChar = ')';
       continue;
     }
 

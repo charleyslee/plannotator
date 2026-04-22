@@ -36,7 +36,7 @@ function rewriteRelativeRefs(
     // External http(s) links: open in a new tab and close the tab-nabbing
     // vector (opener reference back to the plannotator tab). Matches the
     // markdown renderer's behavior for [label](https://...).
-    if (/^https?:/i.test(href)) {
+    if (/^(https?:|\/\/)/i.test(href)) {
       a.setAttribute('target', '_blank');
       a.setAttribute('rel', 'noopener noreferrer');
       return;

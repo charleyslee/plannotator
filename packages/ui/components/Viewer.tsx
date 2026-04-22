@@ -561,7 +561,7 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(({
                       onOpenLinkedDoc={onOpenLinkedDoc}
                       onToggleCheckbox={onToggleCheckbox}
                       checkboxOverrides={checkboxOverrides}
-                      githubRepo={repoInfo?.host === 'github.com' ? repoInfo?.display : undefined}
+                      githubRepo={repoInfo?.display}
                       headingAnchorId={headingSlugMap.get(block.id)}
                     />
                   ))}
@@ -579,7 +579,7 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(({
               imageBaseDir={imageBaseDir}
               onImageClick={(src, alt) => setLightbox({ src, alt })}
               onOpenLinkedDoc={onOpenLinkedDoc}
-              githubRepo={repoInfo?.host === 'github.com' ? repoInfo?.display : undefined}
+              githubRepo={repoInfo?.display}
               onHover={(element) => {
                 if (tableHoverTimeoutRef.current) {
                   clearTimeout(tableHoverTimeoutRef.current);
@@ -631,7 +631,7 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(({
               isHovered={inputMethod !== 'pinpoint' && hoveredCodeBlock?.block.id === group.block.id}
             />
           ) : (
-            <BlockRenderer imageBaseDir={imageBaseDir} onImageClick={(src, alt) => setLightbox({ src, alt })} key={group.block.id} block={group.block} onOpenLinkedDoc={onOpenLinkedDoc} onToggleCheckbox={onToggleCheckbox} checkboxOverrides={checkboxOverrides} githubRepo={repoInfo?.host === 'github.com' ? repoInfo?.display : undefined} headingAnchorId={headingSlugMap.get(group.block.id)} />
+            <BlockRenderer imageBaseDir={imageBaseDir} onImageClick={(src, alt) => setLightbox({ src, alt })} key={group.block.id} block={group.block} onOpenLinkedDoc={onOpenLinkedDoc} onToggleCheckbox={onToggleCheckbox} checkboxOverrides={checkboxOverrides} githubRepo={repoInfo?.display} headingAnchorId={headingSlugMap.get(group.block.id)} />
           )
         )}
 
@@ -727,7 +727,7 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(({
             imageBaseDir={imageBaseDir}
             onImageClick={(src, alt) => setLightbox({ src, alt })}
             onOpenLinkedDoc={onOpenLinkedDoc}
-            githubRepo={repoInfo?.host === 'github.com' ? repoInfo?.display : undefined}
+            githubRepo={repoInfo?.display}
           />
         )}
 
