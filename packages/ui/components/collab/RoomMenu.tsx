@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { RoomStatus } from '@plannotator/shared/collab';
 import { ActionMenu, ActionMenuDivider, ActionMenuItem } from '../ActionMenu';
-import type { AdminAction } from './AdminControls';
+import type { AdminAction } from '../../hooks/collab/useRoomAdminActions';
 
 /**
  * Room actions dropdown, anchored in the editor header next to the

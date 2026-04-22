@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import type { AdminAction } from './AdminControls';
+import type { AdminAction } from '../../hooks/collab/useRoomAdminActions';
 
 /**
  * Bottom-right toast for lock / unlock / delete failures. Replaces

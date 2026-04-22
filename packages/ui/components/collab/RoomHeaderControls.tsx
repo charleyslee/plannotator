@@ -4,7 +4,7 @@ import type { PresenceState, RoomStatus } from '@plannotator/shared/collab';
 import { RoomStatusBadge } from './RoomStatusBadge';
 import { ParticipantAvatars } from './ParticipantAvatars';
 import { RoomMenu } from './RoomMenu';
-import type { AdminAction } from './AdminControls';
+import type { AdminAction } from '../../hooks/collab/useRoomAdminActions';
 
 /**
  * Compact header cluster that replaces the floating RoomPanel.

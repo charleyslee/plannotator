@@ -3,11 +3,6 @@
  * the in-flight action (for button disabling + "…ing" labels) and
  * the most recent failure (for the toast surface).
  *
- * Lives in `packages/ui/hooks` rather than next to the header
- * components because the AdminAction type is shared with
- * `AdminControls` and the `useCollabRoom` client wiring — the hook
- * just orchestrates; it doesn't own the protocol.
- *
  * State is single-slot by design: one pending action at a time, one
  * "last error" slot cleared on the next attempt or manual dismiss.
  * Admin commands are rare and user-initiated; a history queue would
@@ -16,7 +11,13 @@
 
 import { useCallback, useState } from 'react';
 import type { UseCollabRoomReturn } from './useCollabRoom';
-import type { AdminAction } from '../../components/collab/AdminControls';
+
+/**
+ * Discriminant for in-flight admin commands. Consumed by the menu,
+ * the pending-state chrome, and the error toast so each surface can
+ * label itself consistently.
+ */
+export type AdminAction = 'lock' | 'unlock' | 'delete';
 
 export interface UseRoomAdminActionsReturn {
   /** Action currently in flight, if any. Drives button disabled + label. */
