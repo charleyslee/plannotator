@@ -112,6 +112,22 @@ Both of those resolve against the Plannotator server origin instead of the sourc
 
 **Impact:** unusual — users paste README sections with PDF / data / image links that aren't `.md` or `.html`. Low volume but confusing when it hits.
 
+## 9. Copy-as-markdown corrupts tables with pipes in cells
+
+The table hover toolbar and popout both offer "copy as markdown". When any cell contains a literal `|` (common in tables listing regex patterns, shell commands, or boolean "or"), the copied output is silently wrong — the pipe isn't re-escaped, so the pasted table has extra columns where those pipes were.
+
+Source below (note the `\|` escape keeps the table parsed correctly here):
+
+| Case | Pattern | Notes |
+|---|---|---|
+| Regex alternation | `cat\|dog` | matches either word |
+| Shell pipe | `grep err \| wc -l` | count error lines |
+| Boolean | `A \| B` | logical or |
+
+Now hover that table, click copy, paste it into any markdown doc — the "Pattern" column gets split into two columns wherever the `\|` was, shifting every header and cell after it. The table looks fine in the reader; it only goes sideways when copied.
+
+**Impact:** every table that documents regex, shell, or boolean content. Silent corruption on copy — no error, no warning.
+
 ---
 
 ## Ship plan

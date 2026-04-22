@@ -8,6 +8,72 @@ function sanitizeLinkUrl(url: string): string | null {
   return url;
 }
 
+// Trim trailing sentence punctuation from a bare URL, but keep closing
+// brackets when they balance an opener inside the URL (Wikipedia-style
+// https://…/Function_(mathematics) should keep its closing paren).
+export function trimUrlTail(url: string): string {
+  const balanced = (u: string, close: string, open: string): boolean => {
+    let opens = 0, closes = 0;
+    for (const c of u) {
+      if (c === open) opens++;
+      else if (c === close) closes++;
+    }
+    return opens >= closes;
+  };
+  while (url.length > 0) {
+    const last = url[url.length - 1];
+    if (!/[.,;:!?)\]}>"']/.test(last)) break;
+    if (last === ')' && balanced(url, ')', '(')) break;
+    if (last === ']' && balanced(url, ']', '[')) break;
+    if (last === '}' && balanced(url, '}', '{')) break;
+    url = url.slice(0, -1);
+  }
+  return url;
+}
+
+// Scan a plain-text chunk for bare https?:// URLs at word boundaries and
+// emit them as anchor nodes, passing surrounding text through
+// transformPlainText so emoji shortcodes and smart punctuation still apply
+// to the non-URL slices.
+function emitPlainTextWithBareUrls(
+  text: string,
+  previousChar: string,
+  parts: React.ReactNode[],
+  nextKey: () => number,
+): void {
+  if (text.length === 0) return;
+  const re = /https?:\/\/[^\s<>"']+/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const before = m.index === 0 ? previousChar : text[m.index - 1];
+    if (/\w/.test(before)) continue;
+    const raw = m[0];
+    const url = trimUrlTail(raw);
+    const safe = url.length > 0 ? sanitizeLinkUrl(url) : null;
+    if (!safe) continue;
+    if (m.index > last) {
+      parts.push(transformPlainText(text.slice(last, m.index)));
+    }
+    parts.push(
+      <a
+        key={nextKey()}
+        href={safe}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary underline underline-offset-2 hover:text-primary/80"
+      >
+        {url}
+      </a>,
+    );
+    last = m.index + url.length;
+    re.lastIndex = last;
+  }
+  if (last < text.length) {
+    parts.push(transformPlainText(text.slice(last)));
+  }
+}
+
 /**
  * Scanner that walks a text string and emits React nodes for inline markdown:
  * emphasis (**bold**, *italic*, _italic_, ***both***), `code`, ~~strikethrough~~,
@@ -46,23 +112,7 @@ export const InlineMarkdown: React.FC<{
     if (!/\w/.test(previousChar)) {
       const bareMatch = remaining.match(/^https?:\/\/[^\s<>"']+/);
       if (bareMatch) {
-        let url = bareMatch[0];
-        const balanced = (u: string, close: string, open: string): boolean => {
-          let opens = 0, closes = 0;
-          for (const c of u) {
-            if (c === open) opens++;
-            else if (c === close) closes++;
-          }
-          return opens >= closes;
-        };
-        while (url.length > 0) {
-          const last = url[url.length - 1];
-          if (!/[.,;:!?)\]}>"']/.test(last)) break;
-          if (last === ')' && balanced(url, ')', '(')) break;
-          if (last === ']' && balanced(url, ']', '[')) break;
-          if (last === '}' && balanced(url, '}', '{')) break;
-          url = url.slice(0, -1);
-        }
+        const url = trimUrlTail(bareMatch[0]);
         const safe = url.length > 0 ? sanitizeLinkUrl(url) : null;
         if (safe) {
           parts.push(
@@ -531,18 +581,19 @@ export const InlineMarkdown: React.FC<{
       continue;
     }
 
-    // Find next special character or consume one regular character
-    const nextSpecial = remaining.slice(1).search(/[\*_`\[!~\\<#h@]/);
+    // Find next special character or consume one regular character.
+    // `h` is intentionally NOT in this class — plain-text chunks may contain
+    // `h` mid-word (e.g. ":heart:", "hello"), and splitting on it breaks
+    // multi-char patterns like emoji shortcodes. Bare URLs are instead
+    // detected inline via emitPlainTextWithBareUrls() below.
+    const nextSpecial = remaining.slice(1).search(/[\*_`\[!~\\<#@]/);
+    const plainText = nextSpecial === -1 ? remaining : remaining.slice(0, nextSpecial + 1);
+    emitPlainTextWithBareUrls(plainText, previousChar, parts, () => key++);
+    previousChar = plainText[plainText.length - 1] || previousChar;
     if (nextSpecial === -1) {
-      parts.push(transformPlainText(remaining));
-      previousChar = remaining[remaining.length - 1] || previousChar;
       break;
-    } else {
-      const plainText = remaining.slice(0, nextSpecial + 1);
-      parts.push(transformPlainText(plainText));
-      remaining = remaining.slice(nextSpecial + 1);
-      previousChar = plainText[plainText.length - 1] || previousChar;
     }
+    remaining = remaining.slice(nextSpecial + 1);
   }
 
   return <>{parts}</>;

@@ -56,10 +56,15 @@ export const buildCsvFromRows = (headers: string[], rows: string[][]): string =>
 // Inverse of parseTableContent. Whitespace normalized (one space per cell
 // padding). The popout uses this for copy-as-markdown when filter or sort
 // might change what the user sees.
+// parseTableContent unescapes `\|` → `|`, so cells may hold literal pipes.
+// Re-escape on the way out — otherwise the serialized table sprouts extra
+// columns wherever a cell had a pipe.
+const mdCellEscape = (value: string): string => value.replace(/\|/g, '\\|');
+
 export const buildMarkdownTable = (headers: string[], rows: string[][]): string => {
-  const headerLine = `| ${headers.join(' | ')} |`;
+  const headerLine = `| ${headers.map(mdCellEscape).join(' | ')} |`;
   const separator = `| ${headers.map(() => '---').join(' | ')} |`;
-  const bodyLines = rows.map((row) => `| ${row.join(' | ')} |`);
+  const bodyLines = rows.map((row) => `| ${row.map(mdCellEscape).join(' | ')} |`);
   return [headerLine, separator, ...bodyLines].join('\n');
 };
 

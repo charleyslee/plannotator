@@ -1,5 +1,5 @@
 import React from 'react';
-import { InlineMarkdown } from '../InlineMarkdown';
+import { renderProseBody } from './proseBody';
 
 interface CalloutProps {
   blockId: string;
@@ -26,7 +26,6 @@ export const Callout: React.FC<CalloutProps> = ({
   onImageClick,
   githubRepo,
 }) => {
-  const paragraphs = body.split(/\n\n+/);
   const kindAttr =
     blockType === 'alert' ? { 'data-alert-kind': kindAttribute } : { 'data-directive-kind': kindAttribute };
   return (
@@ -39,19 +38,17 @@ export const Callout: React.FC<CalloutProps> = ({
       <div className={`${blockType}-title text-xs font-semibold uppercase tracking-wide mb-1`}>
         {kind}
       </div>
-      {paragraphs.map((para, i) =>
-        para ? (
-          <p key={i} className={`text-[15px] leading-relaxed ${i > 0 ? 'mt-2' : ''}`}>
-            <InlineMarkdown
-              imageBaseDir={imageBaseDir}
-              onImageClick={onImageClick}
-              text={para}
-              onOpenLinkedDoc={onOpenLinkedDoc}
-              githubRepo={githubRepo}
-            />
-          </p>
-        ) : null,
-      )}
+      {renderProseBody({
+        body,
+        // Callout inherits text color from the container (directive tint per
+        // kind). Only pass size/leading classes, not a text-foreground value.
+        paragraphClassName: 'text-[15px] leading-relaxed',
+        listClassName: 'text-[15px] leading-relaxed',
+        imageBaseDir,
+        onImageClick,
+        onOpenLinkedDoc,
+        githubRepo,
+      })}
     </div>
   );
 };
