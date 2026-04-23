@@ -1128,6 +1128,7 @@ const ReviewApp: React.FC = () => {
       (activeDiffBase === 'branch' || activeDiffBase === 'merge-base')
         ? committedBase ?? undefined
         : undefined,
+    activeDiffBase,
     feedbackDiffContext,
     allAnnotations,
     externalAnnotations,

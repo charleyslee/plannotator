@@ -29,6 +29,10 @@ export interface ReviewState {
   fontSize?: string;
   /** User-selected base branch; feeds the `base` query param on file-content fetches. */
   reviewBase?: string;
+  /** Active diff mode (e.g. "branch", "merge-base", "uncommitted"). Used as
+   *  part of the DiffViewer remount key so mode switches invalidate cached
+   *  file content — branch and merge-base compute different "old" sides. */
+  activeDiffBase?: string;
   /** Diff context baked into exported feedback so downstream panels (agent job
    * detail, etc.) produce the same markdown the main feedback path sends. */
   feedbackDiffContext?: FeedbackDiffContext;
