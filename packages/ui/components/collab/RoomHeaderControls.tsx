@@ -1,6 +1,6 @@
 import React from 'react';
 import type { ConnectionStatus } from '@plannotator/shared/collab/client';
-import type { PresenceState, RoomStatus } from '@plannotator/shared/collab';
+import type { PresenceState } from '@plannotator/shared/collab';
 import { RoomStatusBadge } from './RoomStatusBadge';
 import { ParticipantAvatars } from './ParticipantAvatars';
 import { RoomMenu } from './RoomMenu';
@@ -14,12 +14,11 @@ import type { AdminAction } from '../../hooks/collab/useRoomAdminActions';
  * Layout (left → right):
  *   [conditional status pill] [peer avatars] [Room actions ▾]
  *
- * The status pill is shown only when the room is in a non-default
- * state — reconnecting, connecting, offline, or deleted/expired. A
- * healthy "Live" connection shows nothing here, keeping the header
- * quiet on the common case. Avatars are peers-only (the user is
- * implied); the Room menu exposes copy-link + copy-feedback + admin
- * actions.
+ * The status pill is only shown when the connection isn't authenticated
+ * (reconnecting / connecting / offline). A healthy "Live" connection
+ * shows nothing here, keeping the header quiet on the common case.
+ * Terminal states (room gone) don't appear here — the caller swaps to
+ * `RoomUnavailableScreen` instead of rendering the header at all.
  *
  * All mutations (delete, link copy, feedback copy) are owned by
  * the caller. This component is a pure surface.
@@ -27,7 +26,6 @@ import type { AdminAction } from '../../hooks/collab/useRoomAdminActions';
 
 export interface RoomHeaderControlsProps {
   connectionStatus: ConnectionStatus;
-  roomStatus: RoomStatus | null;
   remotePresence: Record<string, PresenceState>;
   isAdmin: boolean;
   adminUrl?: string;
@@ -40,25 +38,8 @@ export interface RoomHeaderControlsProps {
   className?: string;
 }
 
-/**
- * "Healthy" states where the status pill adds noise without
- * information: we're authenticated to an active room. Anything
- * outside that set is either a transient connection state the user
- * should know about (reconnecting / connecting) or a product-level
- * non-default (expired / deleted).
- */
-function shouldShowStatusPill(
-  connectionStatus: ConnectionStatus,
-  roomStatus: RoomStatus | null,
-): boolean {
-  const healthyConnection = connectionStatus === 'authenticated';
-  const healthyRoom = roomStatus === 'active' || roomStatus === null;
-  return !(healthyConnection && healthyRoom);
-}
-
 export function RoomHeaderControls({
   connectionStatus,
-  roomStatus,
   remotePresence,
   isAdmin,
   adminUrl,
@@ -70,7 +51,7 @@ export function RoomHeaderControls({
   onDelete,
   className = '',
 }: RoomHeaderControlsProps): React.ReactElement {
-  const showStatus = shouldShowStatusPill(connectionStatus, roomStatus);
+  const showStatus = connectionStatus !== 'authenticated';
   const hasPeers = Object.keys(remotePresence).length > 0;
 
   return (
@@ -79,10 +60,7 @@ export function RoomHeaderControls({
       data-testid="room-header-controls"
     >
       {showStatus && (
-        <RoomStatusBadge
-          connectionStatus={connectionStatus}
-          roomStatus={roomStatus}
-        />
+        <RoomStatusBadge connectionStatus={connectionStatus} />
       )}
       {hasPeers && (
         <ParticipantAvatars remotePresence={remotePresence} />

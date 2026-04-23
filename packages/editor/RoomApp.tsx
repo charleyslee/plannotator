@@ -26,6 +26,7 @@ import { useCollabRoomSession } from '@plannotator/ui/hooks/collab/useCollabRoom
 import { usePresenceThrottle } from '@plannotator/ui/hooks/collab/usePresenceThrottle';
 import { RemoteCursorLayer } from '@plannotator/ui/components/collab/RemoteCursorLayer';
 import { JoinRoomGate } from '@plannotator/ui/components/collab/JoinRoomGate';
+import { RoomUnavailableScreen } from '@plannotator/ui/components/collab/RoomUnavailableScreen';
 import { loadAdminSecret } from '@plannotator/ui/utils/adminSecretStorage';
 import {
   getIdentity,
@@ -44,12 +45,6 @@ export interface RoomAppProps {
   roomId: string;
   url: string;
   /**
-   * Whether this tab started from a local editor session (creator flow) or
-   * opened the /c/:roomId URL cold (participant flow). Drives the delete
-   * success behavior: creator falls back to local mode; participant sees
-   * the terminal screen.
-   */
-  originatedLocally: boolean;
   /** Children = the existing <App> component; wrapped so it becomes room-aware via props. */
   renderEditor(args: {
     roomSession: ReturnType<typeof useCollabRoomSession>;
@@ -74,7 +69,6 @@ function generateParticipantId(): string {
 export function RoomApp({
   roomId,
   url,
-  originatedLocally,
   renderEditor,
 }: RoomAppProps): React.ReactElement {
   // Skip the join gate when we already have a confirmed identity for
@@ -121,16 +115,10 @@ export function RoomApp({
   // If we came in on a participant-only URL but sessionStorage holds an
   // admin secret for this roomId (previous create in this tab), recover
   // admin capability silently. This is the refresh path for creators.
-  // Also treat storage-held admin as an "originatedLocally" signal: the
-  // only way to get a sessionStorage entry for this roomId in this tab is
-  // to have run the creator flow here. Used to pick the delete-success
-  // fallback screen (creator returns to local mode; cold participant gets
-  // the terminal screen).
   const storedAdminSecret = useMemo(
     () => loadAdminSecret(roomId),
     [roomId],
   );
-  const effectiveOriginatedLocally = originatedLocally || storedAdminSecret !== null;
 
   const session = useCollabRoomSession({
     intent: 'join',
@@ -193,33 +181,11 @@ export function RoomApp({
     );
   }
 
-  // Terminal state: room deleted or expired.
-  const roomStatus = session.room?.roomStatus ?? null;
-  if (roomStatus === 'deleted' || roomStatus === 'expired') {
-    if (effectiveOriginatedLocally) {
-      // Creator/admin: show a concise banner. Falling back to local
-      // mode with current editor state preserved would require
-      // lifting editor state into RoomApp; we ship the terminal
-      // banner and an unmount, matching the participant path's shape.
-      return (
-        <div className="p-4 text-sm text-muted-foreground">
-          This live session has ended.
-        </div>
-      );
-    }
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
-        <div className="text-center space-y-3 max-w-sm">
-          <h2 className="text-lg font-semibold">This room is no longer available</h2>
-          <p className="text-sm text-muted-foreground">
-            The live session has ended or been deleted.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            If you need to continue, ask the room creator for a new link.
-          </p>
-        </div>
-      </div>
-    );
+  // Terminal state: the server closed our socket with the "room
+  // unavailable" signal. Same screen for admin-deleted, auto-expired,
+  // or unknown-room — the client deliberately does not distinguish.
+  if (session.room?.roomUnavailable) {
+    return <RoomUnavailableScreen />;
   }
 
   // Pre-connect identity gate. Prefill from Plannotator preferences so

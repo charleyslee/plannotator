@@ -398,7 +398,6 @@ export type RoomTransportMessage =
   | { type: 'room.snapshot'; snapshotSeq: number; snapshotCiphertext: string }
   | { type: 'room.event'; seq: number; receivedAt: number; envelope: ServerEnvelope }
   | { type: 'room.presence'; envelope: ServerEnvelope }
-  | { type: 'room.status'; status: RoomStatus }
   | { type: 'room.error'; code: string; message: string }
   /**
    * Peer left the room. Broadcast by the room service on a
@@ -412,15 +411,6 @@ export type RoomTransportMessage =
    * receiver couldn't have inferred from absence anyway.
    */
   | { type: 'room.participant.left'; clientId: string };
-
-// ---------------------------------------------------------------------------
-// Room Status
-// ---------------------------------------------------------------------------
-
-// 'created' was in this union historically, but the DO initializes rooms
-// directly to 'active' on creation and never transitions through 'created'.
-// Keeping it in the type would imply an unused lifecycle step.
-export type RoomStatus = 'active' | 'deleted' | 'expired';
 
 // ---------------------------------------------------------------------------
 // Sequenced Envelope (for event log storage)
@@ -462,7 +452,6 @@ export interface AuthResponse {
 
 export interface AuthAccepted {
   type: 'auth.accepted';
-  roomStatus: RoomStatus;
   seq: number;
   snapshotSeq?: number;
   snapshotAvailable: boolean;
@@ -508,7 +497,6 @@ export interface CreateRoomRequest {
 
 export interface CreateRoomResponse {
   roomId: string;
-  status: 'active';
   seq: 0;
   snapshotSeq: 0;
   joinUrl: string;
@@ -521,7 +509,6 @@ export interface CreateRoomResponse {
 
 export interface AgentReadableRoomState {
   roomId: string;
-  status: RoomStatus;
   versionId: 'v1';
   planMarkdown: string;
   annotations: RoomAnnotation[];

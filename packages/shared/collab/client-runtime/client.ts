@@ -21,7 +21,7 @@ import {
   decryptPresence,
   decryptSnapshot,
 } from '../crypto';
-import { ADMIN_ERROR_CODES, WS_CLOSE_REASON_ROOM_DELETED, WS_CLOSE_REASON_ROOM_EXPIRED, WS_CLOSE_ROOM_UNAVAILABLE } from '../constants';
+import { ADMIN_ERROR_CODES, WS_CLOSE_ROOM_UNAVAILABLE } from '../constants';
 import { generateOpId } from '../ids';
 import type {
   AdminChallenge,
@@ -33,7 +33,6 @@ import type {
   RoomEventClientOp,
   RoomServerEvent,
   RoomSnapshot,
-  RoomStatus,
   RoomTransportMessage,
   ServerEnvelope,
 } from '../types';
@@ -246,7 +245,13 @@ export class CollabRoomClient {
   private retiredSockets = new WeakSet<WebSocket>();
   private clientId: string = '';                // regenerated per connect
   private status: ConnectionStatus = 'disconnected';
-  private roomStatus: RoomStatus | null = null;
+  /**
+   * True after the server closed our socket with the "room unavailable"
+   * terminal code. Replaces the former `roomStatus` tri-state — the
+   * client does not distinguish admin delete, auto-expiry, or
+   * unknown-room. All three produce the same generic terminal UX.
+   */
+  private roomUnavailable: boolean = false;
   private seq: number = 0;
   private planMarkdown: string = '';
   private annotations = new Map<string, RoomAnnotation>();
@@ -688,19 +693,12 @@ export class CollabRoomClient {
     // Socket is gone — any reconnect-handshake watchdog for it is moot.
     this.clearReconnectHandshakeTimer();
 
-    // Map the close reason to roomStatus BEFORE the pendingAdmin and
-    // terminal-state checks below. If the client missed the preceding
-    // room.status broadcast (race at delete/expiry time), without this the
-    // admin-delete resolution and the emitted terminal state would still
-    // report roomStatus: 'active'. Only canonical server-sourced reasons
-    // map; generic 'Room unavailable' is intentionally NOT mapped because
-    // it doesn't identify which terminal state was reached.
+    // Set the terminal flag BEFORE the pendingAdmin and terminal checks
+    // below. Any close with the dedicated "room unavailable" code means
+    // the link no longer resolves — admin delete, auto-expiry, or an
+    // unknown-room connect. We don't distinguish the cause.
     if (code === WS_CLOSE_ROOM_UNAVAILABLE) {
-      if (reason === WS_CLOSE_REASON_ROOM_DELETED) {
-        this.roomStatus = 'deleted';
-      } else if (reason === WS_CLOSE_REASON_ROOM_EXPIRED) {
-        this.roomStatus = 'expired';
-      }
+      this.roomUnavailable = true;
     }
 
     if (this.pendingConnect) {
@@ -727,20 +725,19 @@ export class CollabRoomClient {
       return;
     }
 
-    // Reject pending admin if socket closed mid-flight
+    // Reject pending admin if socket closed mid-flight.
+    // For delete: the server closes our socket with WS_CLOSE_ROOM_UNAVAILABLE
+    // as the success signal — purging the room tears down all sockets
+    // (including ours). Any other close (network drop, server error) must
+    // reject so callers don't mistakenly believe a failed/interrupted
+    // delete succeeded.
     if (this.pendingAdmin) {
       const pending = this.pendingAdmin;
       this.pendingAdmin = null;
       clearTimeout(pending.timeoutHandle);
-      // For delete: only resolve when the close is specifically the server's
-      // successful-delete close (4006 "Room deleted") OR when this.roomStatus
-      // was already set to 'deleted' by a preceding room.status broadcast.
-      // Any other close (network drop, 'Room delete failed', etc.) must reject
-      // so callers don't mistakenly believe a failed/interrupted delete succeeded.
       const isSuccessfulDeleteClose =
         pending.command.type === 'room.delete' &&
-        ((code === WS_CLOSE_ROOM_UNAVAILABLE && reason === WS_CLOSE_REASON_ROOM_DELETED) ||
-         this.roomStatus === 'deleted');
+        code === WS_CLOSE_ROOM_UNAVAILABLE;
       if (isSuccessfulDeleteClose) {
         pending.resolve();
       } else {
@@ -755,8 +752,7 @@ export class CollabRoomClient {
     const isTerminal =
       this.userDisconnected ||
       code === WS_CLOSE_ROOM_UNAVAILABLE ||
-      this.roomStatus === 'deleted' ||
-      this.roomStatus === 'expired';
+      this.roomUnavailable;
 
     if (isTerminal) {
       // setStatus already emits `state` on a transition; no trailing emitState
@@ -780,11 +776,7 @@ export class CollabRoomClient {
     this.remotePresence.clear();
     this.stopPresenceSweep();
 
-    if (
-      this.userDisconnected ||
-      this.roomStatus === 'deleted' ||
-      this.roomStatus === 'expired'
-    ) {
+    if (this.userDisconnected || this.roomUnavailable) {
       this.setStatus('closed');
       return;
     }
@@ -857,14 +849,6 @@ export class CollabRoomClient {
     if (msg.type === 'room.presence') {
       const presence = msg as unknown as Extract<RoomTransportMessage, { type: 'room.presence' }>;
       this.enqueue(() => this.handleRoomPresence(presence, gen));
-      return;
-    }
-    if (msg.type === 'room.status') {
-      // Route through the queue so a status broadcast that arrives after a
-      // still-decrypting event doesn't resolve an admin command before the
-      // preceding event has been applied.
-      const status = (msg as { status: RoomStatus }).status;
-      this.enqueue(async () => { this.handleRoomStatus(status, gen); });
       return;
     }
     if (msg.type === 'room.error') {
@@ -1023,7 +1007,6 @@ export class CollabRoomClient {
     // 'authenticated' first, subscribers would briefly see
     // connectionStatus='authenticated' with roomStatus=null (or stale
     // lastError) — a confusing intermediate state for UI consumers.
-    this.roomStatus = accepted.roomStatus;
     this.lastError = null;
     this.setStatus('authenticated');
     // this.seq means "last server seq consumed by this client".
@@ -1055,7 +1038,6 @@ export class CollabRoomClient {
       resolve();
     }
 
-    this.emitter.emit('room-status', accepted.roomStatus);
     this.emitState();
   }
 
@@ -1273,31 +1255,6 @@ export class CollabRoomClient {
     }
   }
 
-  private handleRoomStatus(status: RoomStatus, gen: number): void {
-    // Drop status broadcasts from retired sockets.
-    if (gen !== this.socketGeneration) return;
-    this.roomStatus = status;
-    this.emitter.emit('room-status', status);
-
-    // We resolve the pending admin command by observing the matching
-    // room.status broadcast, because the server does not emit a
-    // command-specific admin.result ack. If the admin-command surface
-    // ever grows beyond a single command, replace this with a
-    // commandId-correlated ack from the room service.
-    if (
-      this.pendingAdmin &&
-      this.pendingAdmin.command.type === 'room.delete' &&
-      status === 'deleted'
-    ) {
-      const pending = this.pendingAdmin;
-      clearTimeout(pending.timeoutHandle);
-      this.pendingAdmin = null;
-      pending.resolve();
-    }
-
-    this.emitState();
-  }
-
   private handleRoomError(
     msg: Extract<RoomTransportMessage, { type: 'room.error' }>,
     gen: number,
@@ -1336,37 +1293,31 @@ export class CollabRoomClient {
   // ---------------------------------------------------------------------------
 
   private sendOp(op: RoomEventClientOp): Promise<void> {
-    // Synchronous precondition checks — fail fast before enqueuing.
+    // Synchronous precondition check — fail fast before enqueuing.
+    // `assertConnected` throws if status isn't 'authenticated'; a terminal
+    // close (room-unavailable) flips status to 'closed' in handleSocketClose,
+    // so this catches rooms that have been purged as well.
     this.assertConnected();
-    if (this.roomStatus !== 'active') {
-      throw new Error(`Cannot send annotation op in room status "${this.roomStatus ?? 'unknown'}"`);
-    }
     // Chain onto the outbound queue so concurrent calls send in CALL order,
     // not encryption-completion order. Without this, a user adding then
     // removing an annotation in quick succession could see the remove land
     // first (empty payloads encrypt faster), leaving the annotation that
     // the remove was meant to delete.
     const next = this.outboundEventQueue.then(async () => {
-      // Re-check liveness inside the queue — a disconnect or terminal room
-      // status could have landed while we were waiting our turn.
+      // Re-check liveness inside the queue — a disconnect or terminal close
+      // could have landed while we were waiting our turn.
       this.assertConnected();
-      if (this.roomStatus !== 'active') {
-        throw new Error(`Cannot send annotation op in room status "${this.roomStatus ?? 'unknown'}"`);
-      }
 
       const opId = generateOpId();
       const ciphertext = await encryptEventOp(this.eventKey, op);
 
-      // Recheck socket AND roomStatus after async encryption. A queued
-      // terminal `room.status` applied during the encrypt would otherwise
-      // let us send an op the server will reject — the user would see the
-      // mutation resolve as "sent" and only learn from async lastError.
+      // Recheck socket after async encryption. A terminal close during the
+      // encrypt would otherwise let us send an op the server will never
+      // receive — the user would see the mutation resolve as "sent" and
+      // only learn from async lastError.
       const ws = this.ws;
       if (this.status !== 'authenticated' || !ws) {
         throw new NotConnectedError();
-      }
-      if (this.roomStatus !== 'active') {
-        throw new Error(`Cannot send annotation op in room status "${this.roomStatus ?? 'unknown'}"`);
       }
 
       const envelope: ServerEnvelope = {
@@ -1529,7 +1480,7 @@ export class CollabRoomClient {
     }
     return {
       connectionStatus: this.status,
-      roomStatus: this.roomStatus,
+      roomUnavailable: this.roomUnavailable,
       roomId: this.roomId,
       clientId: this.clientId,
       seq: this.seq,

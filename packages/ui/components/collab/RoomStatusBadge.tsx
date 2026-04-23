@@ -1,20 +1,18 @@
 import React from 'react';
 import type { ConnectionStatus } from '@plannotator/shared/collab/client';
-import type { RoomStatus } from '@plannotator/shared/collab';
 
 /**
- * Pure status-pill for the live room. Reads connection + room status and
- * shows a single summary label to the user. No side effects; identity
- * driven entirely by props so memoization is trivial.
+ * Pure status-pill for the live room. Renders a single label based on
+ * connection health. Terminal states (room gone) no longer have a badge —
+ * the caller transitions to `RoomUnavailableScreen` instead. No side
+ * effects; identity driven entirely by props so memoization is trivial.
  *
- * Priority (highest wins): roomStatus === 'deleted' > 'expired' >
- * connectionStatus ('reconnecting' / 'connecting' / 'authenticating' /
- * 'disconnected' / 'closed') > default 'Live'.
+ * Labels: reconnecting / connecting / offline / Live (default when
+ * authenticated).
  */
 
 export interface RoomStatusBadgeProps {
   connectionStatus: ConnectionStatus;
-  roomStatus: RoomStatus | null;
   className?: string;
 }
 
@@ -25,16 +23,7 @@ interface Variant {
   pillClass: string;
 }
 
-function deriveVariant(
-  connectionStatus: ConnectionStatus,
-  roomStatus: RoomStatus | null,
-): Variant {
-  if (roomStatus === 'deleted') {
-    return { label: 'Room deleted', dotClass: 'bg-destructive', pillClass: 'bg-destructive/10 text-destructive' };
-  }
-  if (roomStatus === 'expired') {
-    return { label: 'Expired', dotClass: 'bg-muted-foreground', pillClass: 'bg-muted text-muted-foreground' };
-  }
+function deriveVariant(connectionStatus: ConnectionStatus): Variant {
   if (connectionStatus === 'reconnecting') {
     return { label: 'Reconnecting', dotClass: 'bg-warning animate-pulse', pillClass: 'bg-warning/10 text-warning' };
   }
@@ -49,10 +38,9 @@ function deriveVariant(
 
 export function RoomStatusBadge({
   connectionStatus,
-  roomStatus,
   className = '',
 }: RoomStatusBadgeProps): React.ReactElement {
-  const variant = deriveVariant(connectionStatus, roomStatus);
+  const variant = deriveVariant(connectionStatus);
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${variant.pillClass} ${className}`}

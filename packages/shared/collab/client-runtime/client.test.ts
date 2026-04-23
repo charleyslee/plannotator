@@ -133,7 +133,6 @@ async function setup(options: { withAdmin?: boolean } = {}): Promise<TestSetup> 
   // Server sends auth.accepted
   const accepted: AuthAccepted = {
     type: 'auth.accepted',
-    roomStatus: 'active',
     seq: 0,
     snapshotSeq: 0,
     snapshotAvailable: true,
@@ -427,11 +426,12 @@ describe('CollabRoomClient — admin', () => {
     expect(cmd.challengeId).toBe(adminChallenge.challengeId);
     expect(cmd.adminProof.length).toBeGreaterThan(0);
 
-    // Server broadcasts room.status: deleted
-    ws.peer.sendFromServer(JSON.stringify({ type: 'room.status', status: 'deleted' }));
+    // Server terminates the socket with the unavailable close — the
+    // single success signal for delete in the simplified protocol.
+    ws.peer.simulateClose(4006, 'Room unavailable');
 
-    await deletePromise; // resolves on observed effect
-    expect(client.getState().roomStatus).toBe('deleted');
+    await deletePromise; // resolves on terminal close
+    expect(client.getState().roomUnavailable).toBe(true);
     client.disconnect();
   });
 
@@ -556,13 +556,12 @@ describe('CollabRoomClient — admin', () => {
     // Give the error a tick to land.
     await new Promise(r => setTimeout(r, 20));
 
-    // The actual admin status broadcast arrives now — delete should resolve.
-    ws.peer.sendFromServer(JSON.stringify({ type: 'room.status', status: 'deleted' }));
+    // The terminal delete close arrives now — delete should resolve.
+    ws.peer.simulateClose(4006, 'Room unavailable');
     await deletePromise;  // resolves (does NOT reject)
 
     // lastError was still set by the event-channel error for UI consumers.
     expect(client.getState().lastError?.code).toBe('validation_error');
-    client.disconnect();
   });
 });
 
@@ -729,7 +728,6 @@ describe('CollabRoomClient — state events fire on status transitions', () => {
 
     const accepted: AuthAccepted = {
       type: 'auth.accepted',
-      roomStatus: 'active',
       seq: 0,
       snapshotSeq: 0,
       snapshotAvailable: false,
@@ -743,7 +741,7 @@ describe('CollabRoomClient — state events fire on status transitions', () => {
     client.disconnect();
   });
 
-  test('authenticated state is never emitted with null roomStatus or stale lastError (P2 ordering)', async () => {
+  test('authenticated state is never emitted with stale lastError (P2 ordering)', async () => {
     const roomSecret = generateRoomSecret();
     const { authKey, eventKey, presenceKey } = await deriveRoomKeys(roomSecret);
     const roomVerifier = await computeRoomVerifier(authKey, ROOM_ID);
@@ -784,19 +782,17 @@ describe('CollabRoomClient — state events fire on status transitions', () => {
 
     ws.peer.sendFromServer(JSON.stringify({
       type: 'auth.accepted',
-      roomStatus: 'expired',  // non-trivial so null would be visibly wrong
       seq: 0, snapshotSeq: 0, snapshotAvailable: false,
     }));
     await connectPromise;
 
-    // Every snapshot with connectionStatus === 'authenticated' must have a
-    // non-null roomStatus. If setStatus('authenticated') fired before
-    // roomStatus was assigned, at least one snapshot would violate this.
+    // Every snapshot with connectionStatus === 'authenticated' must have
+    // roomUnavailable === false. If setStatus('authenticated') ever fired
+    // against a terminal flag, this would fail.
     const authedSnapshots = snapshots.filter(s => s.connectionStatus === 'authenticated');
     expect(authedSnapshots.length).toBeGreaterThan(0);
     for (const s of authedSnapshots) {
-      expect(s.roomStatus).not.toBeNull();
-      expect(s.roomStatus).toBe('expired');
+      expect(s.roomUnavailable).toBe(false);
     }
 
     client.disconnect();
@@ -867,7 +863,7 @@ describe('CollabRoomClient — auth.accepted does not advance local seq (P1 repl
 
     // Server claims seq: 42 in auth.accepted (replay incoming)
     const accepted: AuthAccepted = {
-      type: 'auth.accepted', roomStatus: 'active',
+      type: 'auth.accepted',
       seq: 42, snapshotSeq: 40, snapshotAvailable: true,
     };
     ws.peer.sendFromServer(JSON.stringify(accepted));
@@ -1043,7 +1039,7 @@ describe('CollabRoomClient — auth proof handler handles mid-await rotation (P2
     firstWs.peer.sendFromServer(JSON.stringify(makeAuthChallenge({ challengeId: firstChallengeId })));
     await firstWs.peer.expectFromClient();
     firstWs.peer.sendFromServer(JSON.stringify({
-      type: 'auth.accepted', roomStatus: 'active',
+      type: 'auth.accepted',
       seq: 0, snapshotSeq: 0, snapshotAvailable: false,
     }));
     await connectPromise;
@@ -1299,7 +1295,7 @@ describe('CollabRoomClient — stale-seq and baseline-invalid guards (P2)', () =
     wsA.peer.sendFromServer(JSON.stringify(makeAuthChallenge()));
     await wsA.peer.expectFromClient();
     wsA.peer.sendFromServer(JSON.stringify({
-      type: 'auth.accepted', roomStatus: 'active',
+      type: 'auth.accepted',
       seq: 0, snapshotSeq: 0, snapshotAvailable: false,
     }));
     await connectPromise;
@@ -1340,7 +1336,7 @@ describe('CollabRoomClient — stale-seq and baseline-invalid guards (P2)', () =
     expect(authResp.lastSeq).toBeUndefined();
 
     wsB.peer.sendFromServer(JSON.stringify({
-      type: 'auth.accepted', roomStatus: 'active',
+      type: 'auth.accepted',
       seq: 11, snapshotSeq: 11, snapshotAvailable: true,
     }));
     // auth.accepted alone must NOT clear baselineInvalid — only a valid
@@ -1669,34 +1665,21 @@ describe('CollabRoomClient — event/snapshot shape validation (P2)', () => {
   });
 });
 
-describe('CollabRoomClient — terminal close maps roomStatus (P2)', () => {
-  test('close 4006 "Room deleted" sets roomStatus = deleted even if the broadcast was missed', async () => {
+describe('CollabRoomClient — terminal close sets roomUnavailable (P2)', () => {
+  test('close 4006 "Room unavailable" sets roomUnavailable=true and closes the connection', async () => {
     const { client, ws } = await setup();
-    // Client missed the room.status: deleted broadcast (never sent in this test).
-    // The terminal close is the ONLY signal that the room is gone.
-    expect(client.getState().roomStatus).toBe('active');
-    ws.peer.simulateClose(4006, 'Room deleted');
-    await new Promise(r => setTimeout(r, 10));
-    expect(client.getState().roomStatus).toBe('deleted');
-    expect(client.getState().connectionStatus).toBe('closed');
-  });
-
-  test('close 4006 "Room expired" sets roomStatus = expired', async () => {
-    const { client, ws } = await setup();
-    ws.peer.simulateClose(4006, 'Room expired');
-    await new Promise(r => setTimeout(r, 10));
-    expect(client.getState().roomStatus).toBe('expired');
-    expect(client.getState().connectionStatus).toBe('closed');
-  });
-
-  test('generic "Room unavailable" close does NOT map to a specific terminal status', async () => {
-    const { client, ws } = await setup();
+    expect(client.getState().roomUnavailable).toBe(false);
     ws.peer.simulateClose(4006, 'Room unavailable');
     await new Promise(r => setTimeout(r, 10));
-    // roomStatus is left as-is (was 'active' from setup). The client is in a
-    // terminal 'closed' connection state but no specific terminal room status.
-    expect(client.getState().roomStatus).toBe('active');
+    expect(client.getState().roomUnavailable).toBe(true);
     expect(client.getState().connectionStatus).toBe('closed');
+  });
+
+  test('network drop (code 1006) does NOT set roomUnavailable', async () => {
+    const { client, ws } = await setup();
+    ws.peer.simulateClose(1006, '');
+    await new Promise(r => setTimeout(r, 10));
+    expect(client.getState().roomUnavailable).toBe(false);
   });
 });
 
@@ -1721,7 +1704,7 @@ describe('CollabRoomClient — deleteRoom socket-close semantics (P2)', () => {
     await expect(deletePromise).rejects.toThrow(/interrupted/i);
   });
 
-  test('deleteRoom resolves on server delete close (code 4006, reason "Room deleted")', async () => {
+  test('deleteRoom resolves on server close (code 4006, "Room unavailable")', async () => {
     const { client, ws } = await setup({ withAdmin: true });
 
     const deletePromise = client.deleteRoom();
@@ -1733,27 +1716,11 @@ describe('CollabRoomClient — deleteRoom socket-close semantics (P2)', () => {
     ws.peer.sendFromServer(JSON.stringify(adminChallenge));
     await ws.peer.expectFromClient();
 
-    // Server's successful-delete close.
-    ws.peer.simulateClose(4006, 'Room deleted');
+    // Server's purge-initiated close — the single success signal.
+    ws.peer.simulateClose(4006, 'Room unavailable');
 
-    await deletePromise;  // resolves
-  });
-
-  test('deleteRoom resolves on room.status: deleted broadcast even before close', async () => {
-    const { client, ws } = await setup({ withAdmin: true });
-
-    const deletePromise = client.deleteRoom();
-    await ws.peer.expectFromClient();
-    const adminChallenge: AdminChallenge = {
-      type: 'admin.challenge', challengeId: generateChallengeId(),
-      nonce: generateNonce(), expiresAt: Date.now() + 30_000,
-    };
-    ws.peer.sendFromServer(JSON.stringify(adminChallenge));
-    await ws.peer.expectFromClient();
-
-    // Server broadcasts the status change; this alone resolves deleteRoom.
-    ws.peer.sendFromServer(JSON.stringify({ type: 'room.status', status: 'deleted' }));
     await deletePromise;
+    expect(client.getState().roomUnavailable).toBe(true);
   });
 });
 
@@ -1799,7 +1766,7 @@ describe('CollabRoomClient — stale socket handlers do not clobber current sock
     ws.peer.sendFromServer(JSON.stringify(makeAuthChallenge()));
     await ws.peer.expectFromClient();
     ws.peer.sendFromServer(JSON.stringify({
-      type: 'auth.accepted', roomStatus: 'active',
+      type: 'auth.accepted',
       seq: 0, snapshotSeq: 0, snapshotAvailable: false,
     }));
     await connectPromise;
@@ -2145,7 +2112,7 @@ describe('CollabRoomClient — openSocket synchronous throw is cleaned up (P2)',
     ws.peer.sendFromServer(JSON.stringify(makeAuthChallenge()));
     await ws.peer.expectFromClient();
     ws.peer.sendFromServer(JSON.stringify({
-      type: 'auth.accepted', roomStatus: 'active',
+      type: 'auth.accepted',
       seq: 0, snapshotSeq: 0, snapshotAvailable: false,
     }));
     await secondConnect;
@@ -2337,10 +2304,8 @@ describe('CollabRoomClient — runAdminCommand send() failure (P3)', () => {
     };
     ws.peer.sendFromServer(JSON.stringify(adminChallenge));
     await ws.peer.expectFromClient();  // admin.command
-    ws.peer.sendFromServer(JSON.stringify({ type: 'room.status', status: 'deleted' }));
+    ws.peer.simulateClose(4006, 'Room unavailable');
     await deletePromise;
-
-    client.disconnect();
   });
 });
 

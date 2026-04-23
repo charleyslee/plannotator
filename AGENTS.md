@@ -62,7 +62,7 @@ plannotator/
 │   │   │   ├── icons/            # Shared SVG icon components (themeIcons, etc.)
 │   │   │   ├── plan-diff/        # PlanDiffBadge, PlanDiffViewer, clean/raw diff views
 │   │   │   ├── sidebar/          # SidebarContainer, SidebarTabs, VersionBrowser, ArchiveBrowser
-│   │   │   └── collab/           # RoomPanel, RoomStatusBadge, ParticipantAvatars, AdminControls, JoinRoomGate, StartRoomModal, RemoteCursorLayer, ImageStripNotice
+│   │   │   └── collab/           # RoomStatusBadge, ParticipantAvatars, RoomHeaderControls, RoomMenu, RoomUnavailableScreen, JoinRoomGate, StartRoomModal, RemoteCursorLayer, ImageStripNotice
 │   │   ├── utils/                # parser.ts, sharing.ts, storage.ts, planSave.ts, agentSwitch.ts, planDiffEngine.ts, planAgentInstructions.ts, adminSecretStorage.ts, blockTargeting.ts
 │   │   ├── hooks/                # useAnnotationHighlighter.ts, useSharing.ts, usePlanDiff.ts, useSidebar.ts, useLinkedDoc.ts, useAnnotationDraft.ts, useCodeAnnotationDraft.ts, useArchive.ts, useCollabRoom.ts, useCollabRoomSession.ts, useAnnotationController.ts, useRoomMode.ts, usePresenceThrottle.ts
 │   │   └── types.ts

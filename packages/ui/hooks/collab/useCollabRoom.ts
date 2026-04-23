@@ -49,7 +49,6 @@ import {
 import type {
   PresenceState,
   RoomAnnotation,
-  RoomStatus,
 } from '@plannotator/shared/collab';
 
 export interface UseCollabRoomOptions {
@@ -65,7 +64,8 @@ export interface UseCollabRoomOptions {
 
 export interface UseCollabRoomReturn {
   connectionStatus: ConnectionStatus;
-  roomStatus: RoomStatus | null;
+  /** True once the server closed our socket with the terminal "room unavailable" signal. */
+  roomUnavailable: boolean;
   planMarkdown: string;
   annotations: RoomAnnotation[];
   /**
@@ -110,7 +110,7 @@ export interface UseCollabRoomReturn {
 
 const DISCONNECTED_STATE: CollabRoomState = {
   connectionStatus: 'disconnected',
-  roomStatus: null,
+  roomUnavailable: false,
   roomId: '',
   clientId: '',
   seq: 0,
@@ -303,7 +303,7 @@ export function useCollabRoom(options: UseCollabRoomOptions): UseCollabRoomRetur
 
   return {
     connectionStatus: stateForRender.connectionStatus,
-    roomStatus: stateForRender.roomStatus,
+    roomUnavailable: stateForRender.roomUnavailable,
     planMarkdown: stateForRender.planMarkdown,
     annotations: stateForRender.annotations,
     seq: stateForRender.seq,

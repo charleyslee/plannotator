@@ -6,8 +6,6 @@
  * DO hibernation via serializeAttachment/deserializeAttachment.
  */
 
-import type { RoomStatus } from '@plannotator/shared/collab';
-
 // ---------------------------------------------------------------------------
 // Worker Environment
 // ---------------------------------------------------------------------------
@@ -25,13 +23,17 @@ export interface Env {
 /**
  * Durable state stored in DO storage under key 'room'.
  *
+ * The room either exists (this record is present) or it doesn't (key
+ * absent). There's no "deleted" / "expired" tombstone state — purgeRoom
+ * hard-deletes the key when the 30-day alarm fires or when an admin
+ * issues delete. Absence means "link doesn't resolve."
+ *
  * Events are NOT stored in this record — they use separate per-event keys
  * ('event:0000000001', etc.) to stay within DO per-value size limits.
  */
 export interface RoomDurableState {
   /** Stored at creation — DO can't reverse idFromName(). */
   roomId: string;
-  status: RoomStatus;
   roomVerifier: string;
   adminVerifier: string;
   seq: number;
@@ -39,8 +41,6 @@ export interface RoomDurableState {
   earliestRetainedSeq: number;
   snapshotCiphertext?: string;
   snapshotSeq?: number;
-  deletedAt?: number;
-  expiredAt?: number;
   expiresAt: number;
 }
 

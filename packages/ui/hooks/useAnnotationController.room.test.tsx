@@ -21,19 +21,17 @@ function makeAnn(id: string, overrides: Partial<Annotation> = {}): Annotation {
 }
 
 /**
- * Build a UseCollabRoomReturn stub. Tests control `annotations`, `seq`, and
- * `roomStatus` via mutator functions, then rerender with the same room
- * reference — the controller reads via getters so mutations land in the
- * next render without rebuilding the stub.
+ * Build a UseCollabRoomReturn stub. Tests control `annotations` and `seq`
+ * via mutator functions, then rerender with the same room reference — the
+ * controller reads via getters so mutations land in the next render
+ * without rebuilding the stub.
  */
 function mockRoom(initial: {
   annotations?: RoomAnnotation[];
-  roomStatus?: UseCollabRoomReturn['roomStatus'];
   seq?: number;
 }): {
   room: UseCollabRoomReturn;
   setAnnotations(next: RoomAnnotation[]): void;
-  setRoomStatus(next: UseCollabRoomReturn['roomStatus']): void;
   setSeq(next: number): void;
   /** Advance room state: new annotations + new seq in one mutation. */
   advance(next: RoomAnnotation[], seqDelta?: number): void;
@@ -47,7 +45,6 @@ function mockRoom(initial: {
   makeSendFail(shouldFail: boolean): void;
 } {
   let annotations = initial.annotations ?? [];
-  let roomStatus = initial.roomStatus ?? 'active';
   let seq = initial.seq ?? 0;
   let lastError: { code: string; message: string; scope: 'mutation' | 'admin' | 'event' | 'presence' | 'snapshot' | 'join' } | null = null;
   let lastErrorId = 0;
@@ -64,7 +61,7 @@ function mockRoom(initial: {
 
   const makeReturn = (): UseCollabRoomReturn => ({
     connectionStatus: 'authenticated',
-    get roomStatus() { return roomStatus; },
+    roomUnavailable: false,
     planMarkdown: '',
     get annotations() { return annotations; },
     get seq() { return seq; },
@@ -84,7 +81,6 @@ function mockRoom(initial: {
   return {
     room: makeReturn(),
     setAnnotations: (next) => { annotations = next; },
-    setRoomStatus: (next) => { roomStatus = next; },
     setSeq: (next) => { seq = next; },
     advance: (next, delta = 1) => { annotations = next; seq += delta; },
     emitError: (code, message, scope = 'mutation') => {
@@ -98,7 +94,7 @@ function mockRoom(initial: {
 
 describe('useRoomAnnotationController', () => {
   test('mode is "room"', () => {
-    const m = mockRoom({ roomStatus: 'active' });
+    const m = mockRoom({});
     const { result } = renderHook(
       ({ room }) => useRoomAnnotationController(room),
       { initialProps: { room: m.room } },

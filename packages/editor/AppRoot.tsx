@@ -148,7 +148,6 @@ function AppRootContent(): React.ReactElement {
     <RoomApp
       roomId={mode.roomId}
       url={mode.url}
-      originatedLocally={false}
       renderEditor={({ roomSession }) => <App roomSession={roomSession} />}
     />
   );

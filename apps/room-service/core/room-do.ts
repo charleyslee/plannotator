@@ -25,9 +25,10 @@ import type {
   RoomTransportMessage,
 } from '@plannotator/shared/collab';
 import { verifyAuthProof, verifyAdminProof, generateChallengeId, generateClientId, generateNonce } from '@plannotator/shared/collab';
-// Shared delete close-signal constants — client matches on the exact literal,
-// so both ends MUST import from the same source.
-import { AdminErrorCode, WS_CLOSE_REASON_ROOM_DELETED, WS_CLOSE_REASON_ROOM_EXPIRED, WS_CLOSE_ROOM_UNAVAILABLE } from '@plannotator/shared/collab/constants';
+// Shared terminal close-signal constants — client treats this pair as
+// "the link no longer resolves" (admin delete, auto-expiry, or a room
+// that never existed — from the client's perspective, indistinguishable).
+import { AdminErrorCode, WS_CLOSE_REASON_ROOM_UNAVAILABLE, WS_CLOSE_ROOM_UNAVAILABLE } from '@plannotator/shared/collab/constants';
 import { DurableObject } from 'cloudflare:workers';
 import type { Env, RoomDurableState, WebSocketAttachment } from './types';
 import { clampExpiryDays, hasRoomExpired, validateServerEnvelope, validateAdminCommandEnvelope, isValidationError } from './validation';
@@ -103,29 +104,32 @@ export class RoomDurableObject extends DurableObject<Env> {
     }
 
     const existing = await this.ctx.storage.get<RoomDurableState>('room');
-    if (existing?.status === 'deleted') {
-      return Response.json({ error: 'Room deleted' }, { status: 410 });
-    }
-    if (existing?.status === 'expired' || (existing && hasRoomExpired(existing.expiresAt))) {
-      await this.markExpired(existing);
-      return Response.json({ error: 'Room expired' }, { status: 410 });
-    }
     if (existing) {
-      return Response.json({ error: 'Room already exists' }, { status: 409 });
+      // Lazy-expiry backstop: if somehow the alarm didn't fire (e.g. the
+      // room outlived its deadline without anyone connecting AND without
+      // the alarm landing), purge here and allow the new create to
+      // supplant the stale roomId. The alarm is the primary cleanup
+      // path — this is defense in depth.
+      if (hasRoomExpired(existing.expiresAt)) {
+        await this.purgeRoom('create-preempted-expired');
+        // fall through to create a fresh room at this id
+      } else {
+        return Response.json({ error: 'Room already exists' }, { status: 409 });
+      }
     }
 
     const expiryDays = clampExpiryDays(body.expiresInDays);
+    const expiresAt = Date.now() + expiryDays * 24 * 60 * 60 * 1000;
 
     const state: RoomDurableState = {
       roomId: body.roomId,
-      status: 'active',
       roomVerifier: body.roomVerifier,
       adminVerifier: body.adminVerifier,
       seq: 0,
       earliestRetainedSeq: 1,
       snapshotCiphertext: body.initialSnapshotCiphertext,
       snapshotSeq: 0,
-      expiresAt: Date.now() + expiryDays * 24 * 60 * 60 * 1000,
+      expiresAt,
     };
 
     try {
@@ -135,12 +139,22 @@ export class RoomDurableObject extends DurableObject<Env> {
       return Response.json({ error: 'Failed to store room state' }, { status: 507 });
     }
 
+    // Schedule the 30-day (or whatever expiryDays clamps to) auto-purge.
+    // `setAlarm` overwrites any pending alarm, which is what we want if
+    // this create supplanted an expired-but-alarm-less room above.
+    try {
+      await this.ctx.storage.setAlarm(expiresAt);
+    } catch (e) {
+      // Non-fatal: lazy-expiry in checkRoomLifecycle + the defense-in-depth
+      // check above still catch overdue rooms. Log and carry on.
+      safeLog('room:set-alarm-error', { roomId: body.roomId, error: String(e) });
+    }
+
     const base = new URL(this.env.BASE_URL || 'https://room.plannotator.ai');
     const wsScheme = base.protocol === 'https:' ? 'wss:' : 'ws:';
 
     const response: CreateRoomResponse = {
       roomId: body.roomId,
-      status: 'active',
       seq: 0,
       snapshotSeq: 0,
       joinUrl: `${base.origin}/c/${body.roomId}`,
@@ -152,6 +166,17 @@ export class RoomDurableObject extends DurableObject<Env> {
   }
 
   // ---------------------------------------------------------------------------
+  // Durable Object alarm — fires at `expiresAt`, purges the room.
+  // ---------------------------------------------------------------------------
+
+  async alarm(): Promise<void> {
+    // The alarm wakes the DO. We don't check expiresAt here — the alarm
+    // was scheduled specifically for now, so if there's any room in
+    // storage we purge it. purgeRoom is idempotent on absence.
+    await this.purgeRoom('expiry');
+  }
+
+  // ---------------------------------------------------------------------------
   // WebSocket Upgrade
   // ---------------------------------------------------------------------------
 
@@ -160,12 +185,10 @@ export class RoomDurableObject extends DurableObject<Env> {
     if (!roomState) {
       return Response.json({ error: 'Room not found' }, { status: 404 });
     }
-    if (roomState.status === 'deleted') {
-      return Response.json({ error: 'Room deleted' }, { status: 410 });
-    }
-    if (roomState.status === 'expired' || hasRoomExpired(roomState.expiresAt)) {
-      await this.markExpired(roomState);
-      return Response.json({ error: 'Room expired' }, { status: 410 });
+    if (hasRoomExpired(roomState.expiresAt)) {
+      // Alarm should have fired; this is defense in depth.
+      await this.purgeRoom('upgrade-preempted-expired');
+      return Response.json({ error: 'Room not found' }, { status: 404 });
     }
 
     // Per-room connection cap — see MAX_CONNECTIONS_PER_ROOM for rationale.
@@ -320,29 +343,23 @@ export class RoomDurableObject extends DurableObject<Env> {
 
   /**
    * Check room lifecycle state. Returns roomState if usable, or null if terminal.
-   * Closes the socket and handles expiry transition for terminal rooms.
+   * Closes the socket for rooms that are gone (purged) or past their deadline.
    */
   private async checkRoomLifecycle(
     ws: WebSocket,
-    roomId: string,
+    _roomId: string,
   ): Promise<RoomDurableState | null> {
     const roomState = await this.ctx.storage.get<RoomDurableState>('room');
     if (!roomState) {
-      ws.close(WS_CLOSE_ROOM_UNAVAILABLE, 'Room unavailable');
+      ws.close(WS_CLOSE_ROOM_UNAVAILABLE, WS_CLOSE_REASON_ROOM_UNAVAILABLE);
       return null;
     }
-    if (roomState.status === 'deleted') {
-      ws.close(WS_CLOSE_ROOM_UNAVAILABLE, WS_CLOSE_REASON_ROOM_DELETED);
-      return null;
-    }
-    if (roomState.status === 'expired') {
-      ws.close(WS_CLOSE_ROOM_UNAVAILABLE, WS_CLOSE_REASON_ROOM_EXPIRED);
-      return null;
-    }
-    // Lazy expiry: active room past retention deadline
+    // Lazy-expiry backstop. Alarm handles the common case; this fires only
+    // if a socket somehow reached us after the deadline without the alarm
+    // having landed yet.
     if (hasRoomExpired(roomState.expiresAt)) {
-      await this.markExpired(roomState, ws);
-      ws.close(WS_CLOSE_ROOM_UNAVAILABLE, WS_CLOSE_REASON_ROOM_EXPIRED);
+      await this.purgeRoom('lifecycle-preempted-expired', ws);
+      ws.close(WS_CLOSE_ROOM_UNAVAILABLE, WS_CLOSE_REASON_ROOM_UNAVAILABLE);
       return null;
     }
     return roomState;
@@ -489,7 +506,6 @@ export class RoomDurableObject extends DurableObject<Env> {
     // Send auth.accepted
     const accepted: AuthAccepted = {
       type: 'auth.accepted',
-      roomStatus: roomState.status,
       seq: roomState.seq,
       snapshotSeq: roomState.snapshotSeq,
       snapshotAvailable: !!roomState.snapshotCiphertext,
@@ -735,52 +751,21 @@ export class RoomDurableObject extends DurableObject<Env> {
     ws: WebSocket,
     roomState: RoomDurableState,
   ): Promise<void> {
-    // No terminal-state guard needed: checkRoomLifecycle runs at the
-    // top of handleAdminCommand and closes the socket + returns early
-    // for any room whose status is already 'deleted' or 'expired', so
-    // this path is only reachable with status === 'active'.
-
-    // Write tombstone first — even if event purge fails, room is marked deleted
-    const {
-      snapshotCiphertext: _s,
-      snapshotSeq: _ss,
-      ...rest
-    } = roomState;
-
-    const deletedState: RoomDurableState = {
-      ...rest,
-      status: 'deleted',
-      roomVerifier: '',
-      adminVerifier: '',
-      deletedAt: Date.now(),
-    };
-
-    // Write tombstone first — critical path
+    // checkRoomLifecycle ran at the top of handleAdminCommand, so this
+    // path is only reachable for a live room. purgeRoom wipes storage,
+    // purges event keys, cancels the expiry alarm, and closes every
+    // socket (including the admin's) with the generic unavailable
+    // reason — same terminal UX as an expired room or a never-created
+    // URL.
     try {
-      await this.ctx.storage.put('room', deletedState);
+      await this.purgeRoom('admin');
     } catch (e) {
-      // Tombstone write failed — the room is still ALIVE. Tell the admin
-      // caller the delete failed, but do NOT close other clients: kicking
-      // everyone into a terminal "room unavailable" state would lie about
-      // the lifecycle (the room is still active server-side). The admin
-      // can retry deleteRoom().
-      safeLog('room:delete-storage-error', { roomId: roomState.roomId, error: String(e) });
+      // purgeRoom already handles its own storage-error logging. Signal
+      // the admin caller that the delete didn't complete so their
+      // pending promise rejects cleanly.
+      safeLog('room:delete-error', { roomId: roomState.roomId, error: String(e) });
       this.sendAdminError(ws, AdminErrorCode.DeleteFailed, 'Failed to delete room');
-      return;
     }
-
-    // Purge event keys (best-effort after tombstone)
-    try {
-      await this.purgeEventKeys();
-    } catch (e) {
-      safeLog('room:delete-purge-error', { roomId: roomState.roomId, error: String(e) });
-    }
-
-    this.broadcast({ type: 'room.status', status: 'deleted' });
-    // Use the shared constant — the client matches this literal to decide
-    // that deleteRoom() succeeded even if the status broadcast was missed.
-    this.closeRoomSockets(WS_CLOSE_REASON_ROOM_DELETED);
-    safeLog('admin:room-deleted', { roomId: roomState.roomId });
   }
 
   // ---------------------------------------------------------------------------
@@ -805,52 +790,60 @@ export class RoomDurableObject extends DurableObject<Env> {
   }
 
   // ---------------------------------------------------------------------------
-  // Expiry + Cleanup
+  // Cleanup — single unified hard-delete path
   // ---------------------------------------------------------------------------
 
   /**
-   * Transition room to expired status and purge sensitive material.
-   * Writes tombstone first, then purges event keys (best-effort).
-   * Returns true if the tombstone was written, false if storage failed.
+   * Hard-delete the room. No tombstone, no lingering state — once this
+   * returns, the DO storage is empty of room data and every connected
+   * socket has been closed with the generic "room unavailable" reason.
+   *
+   * Called from four triggers:
+   *   - 'expiry'                       alarm fired at expiresAt
+   *   - 'admin'                        creator clicked Delete room
+   *   - 'create-preempted-expired'     a fresh create is supplanting a
+   *                                    room whose alarm never fired
+   *   - 'lifecycle-preempted-expired'  a socket reached us after the
+   *                                    deadline; alarm hadn't landed yet
+   *   - 'upgrade-preempted-expired'    same, on the HTTP upgrade path
+   *
+   * `reason` is logged but not surfaced to clients — from their
+   * perspective, every purge looks the same: the link stops resolving.
    */
-  private async markExpired(roomState: RoomDurableState, except?: WebSocket): Promise<boolean> {
-    if (roomState.status === 'expired' || roomState.status === 'deleted') {
-      return true;
-    }
+  private async purgeRoom(
+    reason: 'expiry' | 'admin' | 'create-preempted-expired' | 'lifecycle-preempted-expired' | 'upgrade-preempted-expired',
+    except?: WebSocket,
+  ): Promise<void> {
+    // Close sockets first so connected peers see the terminal close
+    // immediately; storage work runs after. Any send failures during
+    // close are already swallowed by closeRoomSockets.
+    this.closeRoomSockets(WS_CLOSE_REASON_ROOM_UNAVAILABLE, except);
 
-    const {
-      snapshotCiphertext: _scrubCiphertext,
-      snapshotSeq: _scrubSeq,
-      ...rest
-    } = roomState;
-
-    const expiredState: RoomDurableState = {
-      ...rest,
-      status: 'expired',
-      roomVerifier: '',
-      adminVerifier: '',
-      expiredAt: Date.now(),
-    };
-
-    // Write tombstone first — critical path
+    // Best-effort: cancel the pending alarm in case the trigger wasn't
+    // the alarm itself. Avoids a redundant alarm wake after we've
+    // already emptied the room.
     try {
-      await this.ctx.storage.put('room', expiredState);
+      await this.ctx.storage.deleteAlarm();
     } catch (e) {
-      safeLog('room:expire-storage-error', { roomId: roomState.roomId, error: String(e) });
-      this.closeRoomSockets('Room expiry failed', except);
-      return false;
+      safeLog('room:purge-delete-alarm-error', { reason, error: String(e) });
     }
 
-    // Purge event keys (best-effort after tombstone is written)
+    // Purge event log (per-event keys).
     try {
       await this.purgeEventKeys();
     } catch (e) {
-      safeLog('room:expire-purge-error', { roomId: roomState.roomId, error: String(e) });
+      safeLog('room:purge-event-keys-error', { reason, error: String(e) });
     }
 
-    this.closeRoomSockets(WS_CLOSE_REASON_ROOM_EXPIRED, except);
-    safeLog('room:expired', { roomId: roomState.roomId });
-    return true;
+    // Hard-delete the room record. Absence = gone.
+    try {
+      await this.ctx.storage.delete('room');
+    } catch (e) {
+      safeLog('room:purge-delete-error', { reason, error: String(e) });
+      throw e;
+    }
+
+    safeLog('room:purged', { reason });
   }
 
   // ---------------------------------------------------------------------------

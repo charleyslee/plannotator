@@ -75,11 +75,17 @@ async function runJoinWithArgs(args: CommonArgs): Promise<number> {
       }),
     );
   });
-  client.on('room-status', (status) => {
-    console.log(JSON.stringify({ event: 'room.status', status }));
-    if (status === 'deleted' || status === 'expired') {
+  // Watch the `state` event for roomUnavailable — a single terminal
+  // flag replaces the old 'deleted' / 'expired' status values. Fires
+  // once when the server closes us with "Room unavailable" (admin
+  // delete, auto-expiry, or an unknown-room socket).
+  let alreadyUnavailable = false;
+  client.on('state', (state) => {
+    if (!alreadyUnavailable && state.roomUnavailable) {
+      alreadyUnavailable = true;
+      console.log(JSON.stringify({ event: 'room.unavailable' }));
       heartbeat.stop();
-      client.disconnect('terminal_status');
+      client.disconnect('room_unavailable');
       unwireSignals();
       process.exit(0);
     }

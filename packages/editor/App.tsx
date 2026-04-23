@@ -1758,7 +1758,6 @@ const App: React.FC<AppProps> = ({ roomSession }) => {
             {roomModeActive && roomSession?.room && (
               <RoomHeaderControls
                 connectionStatus={roomSession.room.connectionStatus}
-                roomStatus={roomSession.room.roomStatus}
                 remotePresence={roomSession.room.remotePresence}
                 isAdmin={roomSession.room.hasAdminCapability}
                 adminUrl={roomSession.adminUrl}
@@ -1767,7 +1766,16 @@ const App: React.FC<AppProps> = ({ roomSession }) => {
                 onCopyAdminUrl={handleCopyAdminUrl}
                 onCopyConsolidatedFeedback={handleCopyConsolidatedFeedback}
                 onCopyAgentInstructions={handleCopyRoomAgentInstructions}
-                onDelete={() => void roomAdmin.run('delete')}
+                onDelete={() => {
+                  // Flash a toast confirming the intent BEFORE dispatching
+                  // the delete. The admin command tears the socket down on
+                  // success, which transitions this tab to the terminal
+                  // screen — the toast is the last UX before that swap,
+                  // so it has to fire first.
+                  setNoteSaveToast({ type: 'success', message: 'Room deleted' });
+                  setTimeout(() => setNoteSaveToast(null), 3000);
+                  void roomAdmin.run('delete');
+                }}
               />
             )}
 

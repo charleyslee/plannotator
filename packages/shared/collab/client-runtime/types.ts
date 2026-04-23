@@ -10,7 +10,6 @@ import type {
   RoomAnnotation,
   RoomServerEvent,
   RoomSnapshot,
-  RoomStatus,
 } from '../types';
 
 // Forward type-only import to break the cycle between types.ts and client.ts.
@@ -46,7 +45,14 @@ export interface CollabRoomUser {
 
 export interface CollabRoomState {
   connectionStatus: ConnectionStatus;
-  roomStatus: RoomStatus | null;
+  /**
+   * True after the server closed the socket with the "room unavailable"
+   * terminal code. Set by the admin-initiated delete, the 30-day alarm
+   * auto-purge, or any connect attempt against a room that no longer
+   * exists. Indistinguishable to the client — all three surface the
+   * same generic "link doesn't resolve" UX.
+   */
+  roomUnavailable: boolean;
   roomId: string;
   /** Random per WebSocket connection — not a stable participant identifier. */
   clientId: string;
@@ -66,9 +72,9 @@ export interface CollabRoomState {
    * True when this client holds the admin secret. The normal participant
    * share URL is `#key=...` only; the `#key=...&admin=...` URL is the
    * sensitive creator/recovery URL and is not intentionally shared with
-   * participants. Admin commands resolve by observing the matching
-   * room.status broadcast rather than a command-specific ack; a future
-   * multi-admin surface would need commandId-correlated acks instead.
+   * participants. Admin commands resolve by observing the socket-close
+   * signal that the delete-triggered purge produces; a future multi-admin
+   * surface would need commandId-correlated acks instead.
    */
   hasAdminCapability: boolean;
   /**
@@ -107,7 +113,6 @@ export interface CollabRoomState {
 
 export type CollabRoomEvents = {
   status: ConnectionStatus;
-  'room-status': RoomStatus;
   snapshot: RoomSnapshot;
   event: RoomServerEvent;
   presence: { clientId: string; presence: PresenceState };

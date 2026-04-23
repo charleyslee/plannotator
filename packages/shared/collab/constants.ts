@@ -10,22 +10,20 @@ export const ADMIN_SECRET_LENGTH_BYTES = 32;
 
 /**
  * WebSocket close code the server uses when the room is no longer available
- * (deleted, expired). Client code treats this as a terminal close.
+ * (deleted by admin, auto-expired at the 30-day mark, or never existed in
+ * the first place). Client code treats this as a terminal close and surfaces
+ * the same "link doesn't resolve" screen for all three cases — the server
+ * does not distinguish them to the client.
  */
 export const WS_CLOSE_ROOM_UNAVAILABLE = 4006;
 
 /**
- * Close reason string the server sets after a successful admin-initiated
- * delete. The client treats (code === WS_CLOSE_ROOM_UNAVAILABLE && reason ===
- * WS_CLOSE_REASON_ROOM_DELETED) as the canonical "delete succeeded" signal.
- * Both server and client MUST import from here to avoid drift.
+ * Close reason string paired with WS_CLOSE_ROOM_UNAVAILABLE for every
+ * terminal close path (admin delete, auto-expiry, unknown-room connect).
+ * The server logs the specific trigger internally; the client sees only
+ * this one reason.
  */
-export const WS_CLOSE_REASON_ROOM_DELETED = 'Room deleted';
-
-/** Close reason string the server sets when a room has expired. Mapped to
- *  roomStatus = 'expired' on the client when the client missed the preceding
- *  room.status broadcast. */
-export const WS_CLOSE_REASON_ROOM_EXPIRED = 'Room expired';
+export const WS_CLOSE_REASON_ROOM_UNAVAILABLE = 'Room unavailable';
 
 /**
  * Admin-scoped error codes — the contract between server emit sites (in

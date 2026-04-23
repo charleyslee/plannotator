@@ -477,7 +477,7 @@ function useRoomAnnotationControllerOptional(
 function usePlaceholderRoom(): UseCollabRoomReturn {
   return useMemo<UseCollabRoomReturn>(() => ({
     connectionStatus: 'disconnected',
-    roomStatus: null,
+    roomUnavailable: false,
     planMarkdown: '',
     annotations: [],
     seq: 0,
