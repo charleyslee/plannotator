@@ -26,13 +26,39 @@ section: "Guides"
  --gate --json  │  3-button        │  {"decision":"approved"}│  {"decision":"dismissed"}│  {"decision":"annotated","feedback":"..."}
 ```
 
-The JSON schema is minimal by design:
+### JSON schema
 
 ```json
-{ "decision": "approved" | "annotated" | "dismissed", "feedback": "..." }
+{
+  "decision": "approved" | "annotated" | "dismissed",
+  "feedback": "string (present only when decision is 'annotated')"
+}
 ```
 
-`feedback` appears only when `decision` is `annotated`. Everything else is a single-field object.
+### Example outputs
+
+**Approved** (reviewer clicked Approve, `--gate --json`):
+
+```json
+{"decision":"approved"}
+```
+
+**Dismissed** (reviewer clicked Close, `--json` or `--gate --json`):
+
+```json
+{"decision":"dismissed"}
+```
+
+**Annotated** (reviewer sent annotations, `--json` or `--gate --json`). The `feedback` field is the same markdown Plannotator emits in plaintext mode:
+
+```json
+{
+  "decision": "annotated",
+  "feedback": "# File Feedback\n\nI've reviewed this file and have 2 pieces of feedback:\n\n## 1. Remove this\n`the selected text`\n> I don't want this.\n\n## 2. Feedback on: \"some highlighted text\"\n> This needs more detail.\n\n---"
+}
+```
+
+The object is emitted as a single line of JSON per invocation. One invocation, one decision, one line on stdout.
 
 ## `--gate`
 
