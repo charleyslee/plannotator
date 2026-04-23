@@ -41,8 +41,16 @@ export class UsageError extends Error {
   }
 }
 
+// Sentinel for boolean-style flags (no value token followed). Using a Symbol
+// instead of the literal string 'true' avoids a collision where a user passes
+// the literal word "true" as a flag value (e.g. `--text true`) — the old code
+// dropped that value during re-emit because it couldn't distinguish the
+// sentinel from a real argv token.
+const BOOL_FLAG = Symbol('boolFlag');
+type FlagValue = string | typeof BOOL_FLAG;
+
 export function parseCommonArgs(argv: readonly string[]): CommonArgs {
-  const flags = new Map<string, string>();
+  const flags = new Map<string, FlagValue>();
   const rest: string[] = [];
 
   for (let i = 0; i < argv.length; i++) {
@@ -51,7 +59,7 @@ export function parseCommonArgs(argv: readonly string[]): CommonArgs {
       const key = token.slice(2);
       const next = argv[i + 1];
       if (next === undefined || next.startsWith('--')) {
-        flags.set(key, 'true');
+        flags.set(key, BOOL_FLAG);
       } else {
         flags.set(key, next);
         i++;
@@ -65,9 +73,9 @@ export function parseCommonArgs(argv: readonly string[]): CommonArgs {
   const user = flags.get('user');
   const type = flags.get('type');
 
-  if (!url) throw new UsageError('Missing --url');
-  if (!user) throw new UsageError('Missing --user');
-  if (!type) throw new UsageError(`Missing --type (one of ${AGENT_TYPES.join('|')})`);
+  if (typeof url !== 'string') throw new UsageError('Missing --url');
+  if (typeof user !== 'string') throw new UsageError('Missing --user');
+  if (typeof type !== 'string') throw new UsageError(`Missing --type (one of ${AGENT_TYPES.join('|')})`);
   if (!isAgentType(type)) {
     throw new UsageError(`--type must be one of ${AGENT_TYPES.join('|')}; got "${type}"`);
   }
@@ -80,7 +88,7 @@ export function parseCommonArgs(argv: readonly string[]): CommonArgs {
   for (const [k, v] of flags) {
     if (consumed.has(k)) continue;
     passthrough.push(`--${k}`);
-    if (v !== 'true') passthrough.push(v);
+    if (v !== BOOL_FLAG) passthrough.push(v);
   }
 
   return { url, user, type, rest: [...passthrough, ...rest] };
