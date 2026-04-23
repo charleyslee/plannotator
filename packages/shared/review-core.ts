@@ -88,7 +88,18 @@ export async function getDefaultBranch(
   );
   if (remoteHead.exitCode === 0) {
     const ref = remoteHead.stdout.trim();
-    if (ref) return ref.replace("refs/remotes/", "");
+    if (ref) {
+      // `symbolic-ref` only tells us what origin/HEAD *points at* — it does
+      // not guarantee that the target ref was actually fetched. In narrow
+      // or partial clones the pointer can be set while the target is
+      // missing, in which case a later `git diff origin/main..HEAD` would
+      // error. Verify the target exists before trusting it.
+      const verify = await runtime.runGit(
+        ["show-ref", "--verify", "--quiet", ref],
+        { cwd },
+      );
+      if (verify.exitCode === 0) return ref.replace("refs/remotes/", "");
+    }
   }
 
   const mainBranch = await runtime.runGit(

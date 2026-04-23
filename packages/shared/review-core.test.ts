@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import {
+  getDefaultBranch,
   getFileContentsForDiff,
   getGitContext,
   parseWorktreeDiffType,
@@ -200,6 +201,23 @@ describe("review-core", () => {
     );
     expect(newFileContents.oldContent).toBeNull();
     expect(newFileContents.newContent).toBe("brand new\n");
+  });
+
+  test("getDefaultBranch falls back to local when origin/HEAD points at an unfetched ref", () => {
+    // Simulates a narrow / partial clone where origin/HEAD is configured but
+    // the target ref was never fetched. Before the verify step, the server
+    // would return "origin/phantom" and every branch/merge-base diff would
+    // fail with "unknown revision". With the verify step we fall back to
+    // local main.
+    const repoDir = initRepo();
+
+    // Manually set origin/HEAD → origin/phantom without ever fetching it.
+    git(repoDir, ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/phantom"]);
+
+    const runtime = makeRuntime(repoDir);
+    return getDefaultBranch(runtime).then((result) => {
+      expect(result).toBe("main");
+    });
   });
 
   test("parseWorktreeDiffType recognises every DiffType suffix, including merge-base", () => {

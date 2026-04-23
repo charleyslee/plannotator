@@ -159,9 +159,17 @@ const ReviewApp: React.FC = () => {
   const [isWSL, setIsWSL] = useState(false);
   const [diffType, setDiffType] = useState<string>('uncommitted');
   const [gitContext, setGitContext] = useState<GitContext | null>(null);
-  // User's chosen base branch for "vs X" and "Current PR Diff" modes. Null until
-  // gitContext arrives; session-only (no cookie) — resets on reload.
+  // Two bases:
+  //   selectedBase  — what the picker is currently showing (UI intent).
+  //                   Updates immediately when the user picks, so the chip
+  //                   feels responsive.
+  //   committedBase — the base the server last computed the patch against.
+  //                   Drives file-content fetches. Only updates after
+  //                   /api/diff/switch returns, so we never pair an old
+  //                   patch with a new base's file contents (race that
+  //                   produced "trailing context mismatch" warnings).
   const [selectedBase, setSelectedBase] = useState<string | null>(null);
+  const [committedBase, setCommittedBase] = useState<string | null>(null);
   const [agentCwd, setAgentCwd] = useState<string | null>(null);
   const [isLoadingDiff, setIsLoadingDiff] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
@@ -704,7 +712,9 @@ const ReviewApp: React.FC = () => {
           // Prefer the server's active base (survives page refresh / reconnect)
           // over the detected default, so the picker rehydrates to what the
           // server is actually using.
-          setSelectedBase(data.base || data.gitContext.defaultBranch || null);
+          const initial = data.base || data.gitContext.defaultBranch || null;
+          setSelectedBase(initial);
+          setCommittedBase(initial);
         }
         if (data.agentCwd) setAgentCwd(data.agentCwd);
         if (data.sharingEnabled !== undefined) setSharingEnabled(data.sharingEnabled);
@@ -968,7 +978,10 @@ const ReviewApp: React.FC = () => {
       setFiles(nextFiles);
       setDiffType(data.diffType);
       // Resync in case the server resolved to something different (fallback).
-      if (data.base) setSelectedBase(data.base);
+      if (data.base) {
+        setSelectedBase(data.base);
+        setCommittedBase(data.base);
+      }
       setActiveFileIndex(0);
       setPendingSelection(null);
       setDiffError(data.error || null);
@@ -1003,14 +1016,17 @@ const ReviewApp: React.FC = () => {
     await fetchDiffSwitch(fullDiffType);
   }, [diffType, activeWorktreePath, fetchDiffSwitch]);
 
-  // Switch worktree context (or back to main repo)
+  // Switch worktree context (or back to main repo). Preserves the current
+  // diff mode across the switch — if the reviewer was looking at "PR Diff"
+  // in the main repo, they should keep looking at "PR Diff" in the target
+  // worktree rather than being silently snapped back to "Uncommitted".
   const handleWorktreeSwitch = useCallback(async (worktreePath: string | null) => {
     if (worktreePath === activeWorktreePath) return;
     const fullDiffType = worktreePath
-      ? `worktree:${worktreePath}:uncommitted`
-      : 'uncommitted';
+      ? `worktree:${worktreePath}:${activeDiffBase}`
+      : activeDiffBase;
     await fetchDiffSwitch(fullDiffType);
-  }, [activeWorktreePath, fetchDiffSwitch]);
+  }, [activeWorktreePath, activeDiffBase, fetchDiffSwitch]);
 
   // Select annotation - switches file if needed and scrolls to it
   const handleSelectAnnotation = useCallback((id: string | null) => {
@@ -1050,9 +1066,12 @@ const ReviewApp: React.FC = () => {
     fontSize: diffFontSize || undefined,
     // Only propagate base for modes where it affects old/new content. Avoids
     // needless file-content re-fetches when switching to uncommitted/staged/etc.
+    // Uses committedBase (not selectedBase) so file-content queries wait for
+    // the new patch to arrive before refetching — otherwise the viewer can
+    // briefly pair an old patch with the new base's content.
     reviewBase:
       (activeDiffBase === 'branch' || activeDiffBase === 'merge-base')
-        ? selectedBase ?? undefined
+        ? committedBase ?? undefined
         : undefined,
     allAnnotations,
     externalAnnotations,
@@ -1096,7 +1115,7 @@ const ReviewApp: React.FC = () => {
   }), [
     files, activeFileIndex, diffStyle, diffOverflow, diffIndicators,
     diffLineDiffType, diffShowLineNumbers, diffShowBackground,
-    diffFontFamily, diffFontSize, activeDiffBase, selectedBase,
+    diffFontFamily, diffFontSize, activeDiffBase, committedBase,
     allAnnotations, externalAnnotations,
     selectedAnnotationId, pendingSelection, handleLineSelection,
     handleAddAnnotation, handleAddFileComment, handleEditAnnotation,
