@@ -109,11 +109,15 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
     // Yield keyboard nav when a floating overlay owns the focus — Radix
     // DropdownMenu / Popover / Dialog handle arrow keys themselves, and the
-    // old native <select> used to absorb these natively. Without this guard,
-    // opening the diff-type menu and pressing Down would also advance the
-    // active file underneath.
+    // old native <select> used to absorb these natively. `data-radix-popper-
+    // content-wrapper` is Radix's shared wrapper for every floating primitive
+    // (Popover, DropdownMenu, Tooltip, HoverCard), so it catches the base
+    // picker and worktree picker in addition to role-based dialogs/menus.
     const active = document.activeElement;
-    if (active instanceof HTMLElement && active.closest('[role="menu"], [role="dialog"], [role="listbox"]')) {
+    if (
+      active instanceof HTMLElement &&
+      active.closest('[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper]')
+    ) {
       return;
     }
 

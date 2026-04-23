@@ -94,8 +94,15 @@ export const WorktreePicker: React.FC<WorktreePickerProps> = ({
           sideOffset={4}
           className="z-50 w-72 bg-popover text-popover-foreground border border-border rounded shadow-lg overflow-hidden origin-[var(--radix-popover-content-transform-origin)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
           onOpenAutoFocus={(e) => {
-            e.preventDefault();
-            searchRef.current?.focus();
+            // Only override Radix's default focus when the search input is
+            // actually rendered — otherwise the preventDefault() would leave
+            // focus on the trigger, and arrow keys would bubble out to the
+            // file-tree nav. For short worktree lists we let Radix focus the
+            // first picker button itself.
+            if (searchRef.current) {
+              e.preventDefault();
+              searchRef.current.focus();
+            }
           }}
         >
           {worktrees.length > 3 && (
