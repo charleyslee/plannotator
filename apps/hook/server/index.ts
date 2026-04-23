@@ -527,7 +527,7 @@ if (args[0] === "sessions") {
 
   const rawFilePath = args[1];
   if (!rawFilePath) {
-    console.error("Usage: plannotator annotate <file.md | file.html | https://... | folder/>  [--no-jina]");
+    console.error("Usage: plannotator annotate <file.md | file.html | https://... | folder/>  [--no-jina] [--gate] [--json] [--silent-approve]");
     process.exit(1);
   }
 
