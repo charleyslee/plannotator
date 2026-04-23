@@ -106,6 +106,8 @@ export interface PlannotatorAnnotatePayload {
 
 export interface PlannotatorAnnotationResult {
 	feedback: string;
+	/** True when the reviewer closed the session without providing feedback. */
+	exit?: boolean;
 	/** True when the reviewer clicked Approve in review-gate mode, #570 */
 	approved?: boolean;
 }
