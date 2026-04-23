@@ -322,6 +322,10 @@ function buildTourUserMessage(
       const base = options?.defaultBranch || "main";
       return `Walk the reviewer through the code changes against the base branch '${base}' as a guided tour. Run \`git diff ${base}..HEAD\` to inspect the changes.`;
     }
+    case "merge-base": {
+      const base = options?.defaultBranch || "main";
+      return `Walk the reviewer through the PR-style diff against base '${base}' as a guided tour. Run \`mb=$(git merge-base ${base} HEAD) && git diff $mb..HEAD\` to inspect only the changes introduced on this branch (matches GitHub's PR view).`;
+    }
     default:
       return [
         "Walk the reviewer through the following code changes as a guided tour.",
