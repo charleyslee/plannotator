@@ -131,7 +131,6 @@ export async function listBranches(
 
   const local: string[] = [];
   const remote: string[] = [];
-  const localSet = new Set<string>();
 
   for (const line of result.stdout.split("\n")) {
     const [fullRef, shortName] = line.split("\t");
@@ -139,7 +138,6 @@ export async function listBranches(
     if (shortName.endsWith("/HEAD")) continue;
     if (fullRef.startsWith("refs/heads/")) {
       local.push(shortName);
-      localSet.add(shortName);
     } else if (fullRef.startsWith("refs/remotes/")) {
       remote.push(shortName);
     }
