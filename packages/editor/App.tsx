@@ -1042,8 +1042,23 @@ const App: React.FC = () => {
 
       e.preventDefault();
 
-      // Annotate mode: always send feedback (empty = "no feedback" message)
+      // Annotate mode: gate-enabled + no annotations → approve (empty stdout).
+      // Otherwise: send feedback.
       if (annotateMode) {
+        if (gate) {
+          const docAnnotations = linkedDocHook.getDocAnnotations();
+          const hasDocAnnotations = Array.from(docAnnotations.values()).some(
+            (d) => d.annotations.length > 0 || d.globalAttachments.length > 0
+          );
+          const hasAnyAnnotations = allAnnotations.length > 0
+            || editorAnnotations.length > 0
+            || globalAttachments.length > 0
+            || hasDocAnnotations;
+          if (!hasAnyAnnotations) {
+            handleAnnotateApprove();
+            return;
+          }
+        }
         handleAnnotateFeedback();
         return;
       }
@@ -1075,6 +1090,7 @@ const App: React.FC = () => {
     showExport, showImport, showFeedbackPrompt, showClaudeCodeWarning, showExitWarning, showAgentWarning,
     showPermissionModeSetup, pendingPasteImage,
     submitted, isSubmitting, isExiting, isApiMode, linkedDocHook.isActive, annotations.length, externalAnnotations.length, annotateMode,
+    gate, globalAttachments.length, editorAnnotations.length,
     origin, getAgentWarning,
   ]);
 

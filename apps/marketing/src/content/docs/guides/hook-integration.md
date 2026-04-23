@@ -61,10 +61,17 @@ decision=$(echo "$result" | jq -r '.decision')
 feedback=$(echo "$result" | jq -r '.feedback // ""')
 
 case "$decision" in
-  approved|dismissed) exit 0 ;;
-  annotated)          echo "$feedback" ; exit 2 ;;
+  approved|dismissed)
+    # empty stdout — hook passes through, agent proceeds
+    ;;
+  annotated)
+    # emit feedback on stdout so the hook blocks with it as the reason
+    echo "$feedback"
+    ;;
 esac
 ```
+
+Exit code stays `0` for all three branches; signaling happens via stdout (empty = pass, non-empty = block). This mirrors the `--gate`-without-`--json` mode exactly — JSON just gives you a parsed decision for logging or conditional routing without changing the block contract.
 
 ## Recipe 2: Stop-hook turn gate
 
