@@ -17,6 +17,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_ROOM_BASE_URL?: string;
+  readonly VITE_DIFF_DEMO?: string;
 }
 
 interface ImportMeta {

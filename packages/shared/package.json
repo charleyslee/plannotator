@@ -26,6 +26,7 @@
     "./worktree": "./worktree.ts",
     "./html-to-markdown": "./html-to-markdown.ts",
     "./url-to-markdown": "./url-to-markdown.ts",
+    "./tour": "./tour.ts",
     "./collab": "./collab/index.ts",
     "./collab/client": "./collab/client.ts",
     "./collab/constants": "./collab/constants.ts",

@@ -71,6 +71,7 @@ import {
 	parseClaudeStreamOutput,
 	transformClaudeFindings,
 } from "../generated/claude-review.js";
+import { createTourSession, TOUR_EMPTY_OUTPUT_ERROR } from "../generated/tour-review.js";
 
 /** Detect if running inside WSL (Windows Subsystem for Linux) */
 function detectWSL(): boolean {
@@ -147,6 +148,7 @@ export async function startReviewServer(options: {
 	error?: string;
 	sharingEnabled?: boolean;
 	shareBaseUrl?: string;
+	pasteApiUrl?: string;
 	prMetadata?: PRMetadata;
 	/** Working directory for agent processes (e.g., --local worktree). Independent of diff pipeline. */
 	agentCwd?: string;
@@ -193,7 +195,6 @@ export async function startReviewServer(options: {
 
 	// Agent jobs — background process manager (late-binds serverUrl via getter)
 	let serverUrl = "";
-	// Worktree-aware cwd resolver — shared by getCwd, buildCommand, and onJobComplete
 	function resolveAgentCwd(): string {
 		if (options.agentCwd) return options.agentCwd;
 		if (currentDiffType.startsWith("worktree:")) {
@@ -202,32 +203,47 @@ export async function startReviewServer(options: {
 		}
 		return options.gitContext?.cwd ?? process.cwd();
 	}
+	const tour = createTourSession();
+
 	const agentJobs = createAgentJobHandler({
 		mode: "review",
 		getServerUrl: () => serverUrl,
 		getCwd: resolveAgentCwd,
 
-		async buildCommand(provider) {
+		async buildCommand(provider, config) {
 			const cwd = resolveAgentCwd();
 			const hasAgentLocalAccess = !!options.agentCwd || !!options.gitContext;
-			const userMessage = buildCodexReviewUserMessage(
-				currentPatch,
-				currentDiffType,
-				{ defaultBranch: options.gitContext?.defaultBranch, hasLocalAccess: hasAgentLocalAccess },
-				options.prMetadata,
-			);
+			const userMessageOptions = { defaultBranch: options.gitContext?.defaultBranch, hasLocalAccess: hasAgentLocalAccess };
+
+			if (provider === "tour") {
+				return tour.buildCommand({
+					cwd,
+					patch: currentPatch,
+					diffType: currentDiffType,
+					options: userMessageOptions,
+					prMetadata: options.prMetadata,
+					config,
+				});
+			}
+
+			const userMessage = buildCodexReviewUserMessage(currentPatch, currentDiffType, userMessageOptions, options.prMetadata);
 
 			if (provider === "codex") {
+				const model = typeof config?.model === "string" && config.model ? config.model : undefined;
+				const reasoningEffort = typeof config?.reasoningEffort === "string" && config.reasoningEffort ? config.reasoningEffort : undefined;
+				const fastMode = config?.fastMode === true;
 				const outputPath = generateOutputPath();
 				const prompt = CODEX_REVIEW_SYSTEM_PROMPT + "\n\n---\n\n" + userMessage;
-				const command = await buildCodexCommand({ cwd, outputPath, prompt });
-				return { command, outputPath, prompt, label: "Codex Review" };
+				const command = await buildCodexCommand({ cwd, outputPath, prompt, model, reasoningEffort, fastMode });
+				return { command, outputPath, prompt, label: "Code Review", model, reasoningEffort, fastMode: fastMode || undefined };
 			}
 
 			if (provider === "claude") {
+				const model = typeof config?.model === "string" && config.model ? config.model : undefined;
+				const effort = typeof config?.effort === "string" && config.effort ? config.effort : undefined;
 				const prompt = CLAUDE_REVIEW_PROMPT + "\n\n---\n\n" + userMessage;
-				const { command, stdinPrompt } = buildClaudeCommand(prompt);
-				return { command, stdinPrompt, prompt, cwd, label: "Claude Code Review", captureStdout: true };
+				const { command, stdinPrompt } = buildClaudeCommand(prompt, model, effort);
+				return { command, stdinPrompt, prompt, cwd, label: "Code Review", captureStdout: true, model, effort };
 			}
 
 			return null;
@@ -242,7 +258,7 @@ export async function startReviewServer(options: {
 
 				// Override verdict if there are blocking findings (P0/P1) — Codex's
 				// freeform correctness string can say "mostly correct" with real bugs.
-				const hasBlockingFindings = output.findings.some((f: any) => f.priority !== null && f.priority <= 1);
+				const hasBlockingFindings = output.findings.some(f => f.priority !== null && f.priority <= 1);
 				job.summary = {
 					correctness: hasBlockingFindings ? "Issues Found" : output.overall_correctness,
 					explanation: output.overall_explanation,
@@ -259,7 +275,10 @@ export async function startReviewServer(options: {
 
 			if (job.provider === "claude" && meta.stdout) {
 				const output = parseClaudeStreamOutput(meta.stdout);
-				if (!output) return;
+				if (!output) {
+					console.error(`[claude-review] Failed to parse output (${meta.stdout.length} bytes, last 200: ${meta.stdout.slice(-200)})`);
+					return;
+				}
 
 				const total = output.summary.important + output.summary.nit + output.summary.pre_existing;
 				job.summary = {
@@ -275,12 +294,28 @@ export async function startReviewServer(options: {
 				}
 				return;
 			}
+
+			if (job.provider === "tour") {
+				const { summary } = await tour.onJobComplete({ job, meta });
+				if (summary) {
+					job.summary = summary;
+				} else {
+					// The process exited 0 but the model returned empty or malformed output
+					// and nothing was stored. Flip status so the client doesn't auto-open
+					// a successful-looking card that 404s on /api/tour/:id.
+					job.status = "failed";
+					job.error = TOUR_EMPTY_OUTPUT_ERROR;
+				}
+				return;
+			}
 		},
 	});
 	const sharingEnabled =
 		options.sharingEnabled ?? process.env.PLANNOTATOR_SHARE !== "disabled";
 	const shareBaseUrl =
 		(options.shareBaseUrl ?? process.env.PLANNOTATOR_SHARE_URL) || undefined;
+	const pasteApiUrl =
+		(options.pasteApiUrl ?? process.env.PLANNOTATOR_PASTE_URL) || undefined;
 	let resolveDecision!: (result: {
 		approved: boolean;
 		feedback: string;
@@ -412,6 +447,32 @@ export async function startReviewServer(options: {
 	const server = createServer(async (req, res) => {
 		const url = requestUrl(req);
 
+		// API: Get tour result
+		if (url.pathname.match(/^\/api\/tour\/[^/]+$/) && req.method === "GET") {
+			const jobId = url.pathname.slice("/api/tour/".length);
+			const result = tour.getTour(jobId);
+			if (!result) {
+				json(res, { error: "Tour not found" }, 404);
+				return;
+			}
+			json(res, result);
+			return;
+		}
+
+		// API: Save tour checklist state
+		const checklistMatch = url.pathname.match(/^\/api\/tour\/([^/]+)\/checklist$/);
+		if (checklistMatch && req.method === "PUT") {
+			const jobId = checklistMatch[1];
+			try {
+				const body = await parseBody(req) as { checked: boolean[] };
+				if (Array.isArray(body.checked)) tour.saveChecklist(jobId, body.checked);
+				json(res, { ok: true });
+			} catch {
+				json(res, { error: "Invalid JSON" }, 400);
+			}
+			return;
+		}
+
 		if (url.pathname === "/api/diff" && req.method === "GET") {
 			json(res, {
 				rawPatch: currentPatch,
@@ -421,6 +482,7 @@ export async function startReviewServer(options: {
 				gitContext: hasLocalAccess ? options.gitContext : undefined,
 				sharingEnabled,
 				shareBaseUrl,
+				pasteApiUrl,
 				repoInfo,
 				isWSL: wslFlag,
 				...(options.agentCwd && { agentCwd: options.agentCwd }),
