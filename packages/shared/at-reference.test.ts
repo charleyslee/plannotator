@@ -30,6 +30,30 @@ describe("stripAtPrefix", () => {
   test("handles empty string", () => {
     expect(stripAtPrefix("")).toBe("");
   });
+
+  // Wrapping quotes come from harnesses that tokenize on whitespace (OpenCode,
+  // Pi). Users have to quote paths with spaces: `"@My Notes.md"`. Without
+  // unwrapping the quotes first, stripAtPrefix would never see the `@`.
+  test("strips wrapping double quotes before stripping @", () => {
+    expect(stripAtPrefix(`"@foo.md"`)).toBe("foo.md");
+  });
+
+  test("strips wrapping single quotes before stripping @", () => {
+    expect(stripAtPrefix(`'@foo.md'`)).toBe("foo.md");
+  });
+
+  test("strips wrapping quotes around a path with spaces", () => {
+    expect(stripAtPrefix(`"@My Notes.md"`)).toBe("My Notes.md");
+  });
+
+  test("strips wrapping quotes when no @ present", () => {
+    expect(stripAtPrefix(`"foo.md"`)).toBe("foo.md");
+  });
+
+  test("leaves mismatched quotes alone (not wrapping)", () => {
+    expect(stripAtPrefix(`"@foo.md`)).toBe(`"@foo.md`);
+    expect(stripAtPrefix(`@foo.md"`)).toBe(`foo.md"`);
+  });
 });
 
 describe("resolveAtReference", () => {

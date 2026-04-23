@@ -175,4 +175,45 @@ describe("parseAnnotateArgs", () => {
       json: false,
     });
   });
+
+  // OpenCode and Pi don't go through a shell, so users who quote paths
+  // (shell muscle memory, copy-paste from docs) have literal quote
+  // characters reach the parser. Strip them at the tokenization layer
+  // so downstream callers don't have to reason about quoting.
+
+  test("wrapping double quotes are stripped from both filePath and rawFilePath", () => {
+    expect(parseAnnotateArgs(`"@foo.md" --gate`)).toEqual({
+      filePath: "foo.md",
+      rawFilePath: "@foo.md",
+      gate: true,
+      json: false,
+    });
+  });
+
+  test("wrapping single quotes are stripped", () => {
+    expect(parseAnnotateArgs(`'@foo.md' --gate`)).toEqual({
+      filePath: "foo.md",
+      rawFilePath: "@foo.md",
+      gate: true,
+      json: false,
+    });
+  });
+
+  test("wrapping quotes around a path with spaces", () => {
+    expect(parseAnnotateArgs(`"@My Notes.md" --gate`)).toEqual({
+      filePath: "My Notes.md",
+      rawFilePath: "@My Notes.md",
+      gate: true,
+      json: false,
+    });
+  });
+
+  test("wrapping quotes without @ still get stripped", () => {
+    expect(parseAnnotateArgs(`"My Notes.md"`)).toEqual({
+      filePath: "My Notes.md",
+      rawFilePath: "My Notes.md",
+      gate: false,
+      json: false,
+    });
+  });
 });

@@ -14,13 +14,21 @@
  * callback, so they're trivial to unit-test without stubbing anything.
  */
 
+import { stripWrappingQuotes } from "./resolve-file";
+
 /**
- * Remove a single leading `@` from `input`. Leaves non-`@` strings and
- * non-leading `@` characters alone. Does not recurse — `@@foo` becomes
- * `@foo`, not `foo`.
+ * Normalize a user-typed path reference by unwrapping matching `"..."` or
+ * `'...'` quotes and removing a single leading `@`. Quotes come from
+ * harnesses that tokenize on whitespace (OpenCode, Pi), where paths
+ * containing spaces have to be quoted. The quote-stripping has to run
+ * first so the `@` check sees the real first character.
+ *
+ * Non-`@` inputs are returned unchanged except for quote unwrapping.
+ * Does not recurse: `@@foo` becomes `@foo`, not `foo`.
  */
 export function stripAtPrefix(input: string): string {
-  return input.startsWith("@") ? input.slice(1) : input;
+  const unquoted = stripWrappingQuotes(input);
+  return unquoted.startsWith("@") ? unquoted.slice(1) : unquoted;
 }
 
 /**

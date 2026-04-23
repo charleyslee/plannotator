@@ -26,6 +26,7 @@
  */
 
 import { stripAtPrefix } from "./at-reference";
+import { stripWrappingQuotes } from "./resolve-file";
 
 export interface ParsedAnnotateArgs {
   /**
@@ -79,12 +80,16 @@ export function parseAnnotateArgs(raw: string): ParsedAnnotateArgs {
 
   // Trim covers the case where two adjacent flags (`... --gate --json`)
   // both claim the single whitespace between them, leaving a trailing space
-  // after the kept token.
-  const rawFilePath = segments
-    .filter((_, j) => keep[j])
-    .map((seg) => seg.text)
-    .join("")
-    .trim();
+  // after the kept token. Wrapping quotes come from OpenCode/Pi users who
+  // quote paths with spaces (shell muscle memory); strip them here so
+  // downstream callers never see tokenization artifacts.
+  const rawFilePath = stripWrappingQuotes(
+    segments
+      .filter((_, j) => keep[j])
+      .map((seg) => seg.text)
+      .join("")
+      .trim(),
+  );
 
   return { filePath: stripAtPrefix(rawFilePath), rawFilePath, gate, json };
 }
