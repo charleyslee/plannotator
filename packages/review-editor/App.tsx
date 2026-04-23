@@ -1155,6 +1155,23 @@ const ReviewApp: React.FC = () => {
     }
   }, [diffData]);
 
+  // Diff context bundled into local-mode feedback headers so the receiving
+  // agent knows which diff the annotations are anchored to. Uses committedBase
+  // (what the server actually computed) and activeDiffBase/activeWorktreePath
+  // (derived from the committed diffType). Skipped in PR mode — the PR header
+  // already carries the relevant context.
+  const feedbackDiffContext = useMemo(
+    () =>
+      prMetadata || !activeDiffBase
+        ? undefined
+        : {
+            mode: activeDiffBase,
+            base: committedBase ?? undefined,
+            worktreePath: activeWorktreePath,
+          },
+    [prMetadata, activeDiffBase, committedBase, activeWorktreePath],
+  );
+
   // Copy feedback markdown to clipboard
   const handleCopyFeedback = useCallback(async () => {
     if (allAnnotations.length === 0) {
@@ -1162,7 +1179,7 @@ const ReviewApp: React.FC = () => {
       return;
     }
     try {
-      const feedback = exportReviewFeedback(allAnnotations, prMetadata);
+      const feedback = exportReviewFeedback(allAnnotations, prMetadata, feedbackDiffContext);
       await navigator.clipboard.writeText(feedback);
       setCopyFeedback('Feedback copied!');
       setTimeout(() => setCopyFeedback(null), 2000);
@@ -1171,15 +1188,15 @@ const ReviewApp: React.FC = () => {
       setCopyFeedback('Failed to copy');
       setTimeout(() => setCopyFeedback(null), 2000);
     }
-  }, [allAnnotations, prMetadata]);
+  }, [allAnnotations, prMetadata, feedbackDiffContext]);
 
   const feedbackMarkdown = useMemo(() => {
-    let output = exportReviewFeedback(allAnnotations, prMetadata);
+    let output = exportReviewFeedback(allAnnotations, prMetadata, feedbackDiffContext);
     if (editorAnnotations.length > 0) {
       output += exportEditorAnnotations(editorAnnotations);
     }
     return output;
-  }, [allAnnotations, prMetadata, editorAnnotations]);
+  }, [allAnnotations, prMetadata, feedbackDiffContext, editorAnnotations]);
 
   const totalAnnotationCount = allAnnotations.length + editorAnnotations.length;
 
