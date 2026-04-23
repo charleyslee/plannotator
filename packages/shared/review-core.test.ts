@@ -162,7 +162,10 @@ describe("review-core", () => {
 
     expect(result.patch).toBe("");
     expect(result.label).toBe("Error: branch");
-    expect(result.error).toContain("git diff --no-ext-diff master..HEAD");
+    // Error message is derived from the argv; check the meaningful parts
+    // rather than the exact string so harmless argv reorders don't break it.
+    expect(result.error).toContain("git diff");
+    expect(result.error).toContain("master..HEAD");
   });
 
   test("git context lists worktrees and file content lookup returns old/new content", async () => {

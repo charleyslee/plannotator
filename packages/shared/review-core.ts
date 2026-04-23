@@ -232,13 +232,13 @@ export async function getGitContext(
     { id: "last-commit", label: "Last commit" },
   ];
 
-  // `defaultBranch` may be a remote ref like `origin/main` while `currentBranch`
-  // is the bare local name — treat `origin/X` and `X` as equivalent so we don't
-  // surface base-vs-base diff options when the user is actually on the default branch.
-  const onDefaultBranch =
-    currentBranch === defaultBranch ||
-    `origin/${currentBranch}` === defaultBranch;
-  if (!onDefaultBranch) {
+  // Always offer Branch diff / PR Diff when a default branch exists. The
+  // older guard hid them on the default branch because "vs <default>" from
+  // <default> is always empty — but with the base picker the user can
+  // meaningfully compare against any other branch from any branch. Preserving
+  // the mode across worktree switches + Pi's `initialBase` also require these
+  // options to be available regardless of the current branch.
+  if (defaultBranch) {
     diffOptions.push({ id: "branch", label: `vs ${defaultBranch}` });
     diffOptions.push({ id: "merge-base", label: `Current PR Diff` });
   }
@@ -462,12 +462,17 @@ export async function runGitDiff(
       }
 
       case "branch": {
+        // `--end-of-options` hardens against caller-supplied refs that start
+        // with `-` being parsed as git flags (e.g. `--output=...` would
+        // redirect diff output to an attacker-chosen path). Same pattern
+        // applied wherever user-controlled refs flow into git argv.
         const branchDiffArgs = [
           "diff",
           "--no-ext-diff",
-          `${defaultBranch}..HEAD`,
           "--src-prefix=a/",
           "--dst-prefix=b/",
+          "--end-of-options",
+          `${defaultBranch}..HEAD`,
         ];
         const branchDiff = assertGitSuccess(
           await runtime.runGit(branchDiffArgs, { cwd }),
@@ -479,17 +484,19 @@ export async function runGitDiff(
       }
 
       case "merge-base": {
+        const mergeBaseLookupArgs = ["merge-base", "--end-of-options", defaultBranch, "HEAD"];
         const mergeBaseResult = assertGitSuccess(
-          await runtime.runGit(["merge-base", defaultBranch, "HEAD"], { cwd }),
-          ["merge-base", defaultBranch, "HEAD"],
+          await runtime.runGit(mergeBaseLookupArgs, { cwd }),
+          mergeBaseLookupArgs,
         );
         const mergeBase = mergeBaseResult.stdout.trim();
         const mergeBaseDiffArgs = [
           "diff",
           "--no-ext-diff",
-          `${mergeBase}..HEAD`,
           "--src-prefix=a/",
           "--dst-prefix=b/",
+          "--end-of-options",
+          `${mergeBase}..HEAD`,
         ];
         const mergeBaseDiff = assertGitSuccess(
           await runtime.runGit(mergeBaseDiffArgs, { cwd }),
@@ -554,7 +561,8 @@ export async function getFileContentsForDiff(
   }
 
   async function gitShow(ref: string, path: string): Promise<string | null> {
-    const result = await runtime.runGit(["show", `${ref}:${path}`], { cwd });
+    // `--end-of-options` hardens against user-supplied refs starting with `-`.
+    const result = await runtime.runGit(["show", "--end-of-options", `${ref}:${path}`], { cwd });
     return result.exitCode === 0 ? result.stdout : null;
   }
 
@@ -590,7 +598,7 @@ export async function getFileContentsForDiff(
         newContent: await gitShow("HEAD", filePath),
       };
     case "merge-base": {
-      const mbResult = await runtime.runGit(["merge-base", defaultBranch, "HEAD"], { cwd });
+      const mbResult = await runtime.runGit(["merge-base", "--end-of-options", defaultBranch, "HEAD"], { cwd });
       const mb = mbResult.exitCode === 0 ? mbResult.stdout.trim() : defaultBranch;
       return {
         oldContent: await gitShow(mb, oldFilePath),
