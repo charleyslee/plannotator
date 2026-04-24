@@ -1,20 +1,20 @@
 ---
 title: "Hook Integration"
-description: "Wire Plannotator into Claude Code and Codex hooks for human-in-the-loop review gates on spec artifacts, code output, and agent turns."
+description: "Wire Plannotator into agent hooks for human-in-the-loop review gates on spec artifacts, code output, and agent turns. Works with Claude Code, Codex, OpenCode, and any agent that supports PostToolUse or Stop hooks."
 sidebar:
   order: 27
 section: "Guides"
 ---
 
-Plannotator can run as a hook command inside Claude Code and Codex. The agent writes a file or finishes a turn, the hook fires, and Plannotator opens a review UI in the browser. The reviewer approves, sends annotations, or dismisses. The hook blocks until a decision is made, then returns the result to the agent in the hook protocol's native format.
+Plannotator can run as a hook command inside any agent that supports lifecycle hooks. The agent writes a file or finishes a turn, the hook fires, and Plannotator opens a review UI in the browser. The reviewer approves, sends annotations, or dismisses. The hook blocks until a decision is made, then returns the result in the hook protocol's native format.
 
 One flag does everything:
 
 ```
-plannotator annotate "$CLAUDE_TOOL_INPUT_file_path" --hook
+plannotator annotate <file> --hook
 ```
 
-`--hook` implies `--gate` (three-button UX) and emits hook-native JSON. Approve and Close produce empty stdout (hook passes). Send Annotations produces `{"decision":"block","reason":"<feedback>"}` (hook blocks with feedback). Works with both Claude Code and Codex hook protocols.
+`--hook` implies `--gate` (three-button UX) and emits hook-native JSON. Approve and Close produce empty stdout (hook passes). Send Annotations produces `{"decision":"block","reason":"<feedback>"}` (hook blocks with feedback). This format is the native protocol for Claude Code, Codex, and any agent that uses `{"decision":"block"}` for hook signaling.
 
 ## How hooks see Plannotator
 
@@ -26,15 +26,18 @@ Agent hooks communicate via stdout and exit codes. Plannotator always exits `0`.
 | Close | empty | passes, agent proceeds |
 | Send Annotations | `{"decision":"block","reason":"<feedback>"}` | blocks, feedback shown to agent |
 
-The `{"decision":"block","reason":"..."}` format is the native protocol for both [Claude Code hooks](https://code.claude.com/docs/en/hooks) and [Codex hooks](https://developers.openai.com/codex/hooks). No wrapper script needed.
+The `{"decision":"block","reason":"..."}` format is the native hook protocol used by [Claude Code](https://code.claude.com/docs/en/hooks), [Codex](https://developers.openai.com/codex/hooks), and compatible agents. No wrapper script needed.
 
 ## Environment variables in hooks
 
-When a hook fires, the agent exposes tool inputs as environment variables. The most common one for Plannotator:
+When a hook fires, the agent exposes tool inputs as environment variables. The variable names depend on the agent:
 
-- **`$CLAUDE_TOOL_INPUT_file_path`** -- the file path the agent passed to the Write/Edit tool. Use this to tell Plannotator which file to annotate.
+| Agent | File path variable | Project root |
+|---|---|---|
+| Claude Code | `$CLAUDE_TOOL_INPUT_file_path` | `$CLAUDE_PROJECT_DIR` |
+| Codex | `$CODEX_TOOL_INPUT_file_path` | `$CODEX_PROJECT_DIR` |
 
-Other useful variables: `$CLAUDE_TOOL_INPUT_command` (Bash), `$CLAUDE_PROJECT_DIR` (project root). See your agent's hook documentation for the full list.
+The examples below use Claude Code's variable names. Substitute your agent's equivalents. See your agent's hook documentation for the full list of available variables.
 
 ## Recipe 1: Review every file the agent writes
 
@@ -115,15 +118,15 @@ Emits `{"decision":"approved|annotated|dismissed","feedback":"..."}` for every d
 
 See [Annotate Flags](/docs/commands/annotate/#flags) for the full stdout matrix.
 
-## OpenCode and Pi
+## Agents with built-in plugins
 
-The same flags work in OpenCode's `/plannotator-annotate` and Pi's `/plannotator-annotate`:
+OpenCode and Pi have native Plannotator plugins with slash commands:
 
 ```
 /plannotator-annotate spec.md --gate
 ```
 
-These harnesses don't use stdout for signaling -- the plugin writes directly to the session. Approve and Close skip injection; Send Annotations injects the feedback. `--hook` and `--json` are accepted silently so recipes stay portable across harnesses.
+These harnesses don't use stdout for signaling -- the plugin writes directly to the session. Approve and Close skip injection; Send Annotations injects the feedback. `--hook` and `--json` are accepted silently so recipes stay portable across all harnesses.
 
 ## Notes
 
