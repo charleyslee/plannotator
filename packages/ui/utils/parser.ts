@@ -593,6 +593,7 @@ export const exportAnnotations = (
 export interface LinkedDocAnnotationEntry {
   annotations: Annotation[];
   globalAttachments: ImageAttachment[];
+  markdown?: string;
   blocks?: Block[];
   isConverted?: boolean;
 }
