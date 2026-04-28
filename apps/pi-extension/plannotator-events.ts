@@ -279,6 +279,7 @@ export function registerPlannotatorEventListeners(pi: ExtensionAPI): void {
 						payload.mode ?? "annotate",
 						payload.folderPath,
 						undefined,
+						undefined,
 						payload.gate,
 					);
 					request.respond({ status: "handled", result });
