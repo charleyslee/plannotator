@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { type Origin, getAgentName } from '@plannotator/shared/agents';
-import { parseMarkdownToBlocks, exportAnnotations, exportLinkedDocAnnotations, exportEditorAnnotations, extractFrontmatter, wrapFeedbackForAgent, Frontmatter } from '@plannotator/ui/utils/parser';
+import { parseMarkdownToBlocks, exportAnnotations, exportLinkedDocAnnotations, exportEditorAnnotations, extractFrontmatter, wrapFeedbackForAgent, Frontmatter, type LinkedDocAnnotationEntry } from '@plannotator/ui/utils/parser';
 import { Viewer, ViewerHandle } from '@plannotator/ui/components/Viewer';
 import { AnnotationPanel } from '@plannotator/ui/components/AnnotationPanel';
 import { ExportModal } from '@plannotator/ui/components/ExportModal';
@@ -1208,7 +1208,7 @@ const App: React.FC = () => {
     if (hasDocAnnotations) {
       // Parse blocks for each linked doc's cached markdown so the exporter
       // can attach source line numbers per annotation.
-      const enriched = new Map(docAnnotations);
+      const enriched: Map<string, LinkedDocAnnotationEntry> = new Map(docAnnotations);
       for (const [filepath, entry] of enriched) {
         if (entry.markdown) {
           enriched.set(filepath, { ...entry, blocks: parseMarkdownToBlocks(entry.markdown) });
