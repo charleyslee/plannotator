@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { File, type LineAnnotation, type SelectedLineRange as PierreSelectedLineRange } from '@pierre/diffs/react';
+import { File, type LineAnnotation } from '@pierre/diffs/react';
+import type { SelectedLineRange as PierreSelectedLineRange, LineEventBaseProps } from '@pierre/diffs';
 import { PopoutDialog } from './PopoutDialog';
 import { useTheme } from './ThemeProvider';
 import { CommentPopover } from './CommentPopover';
 import { ImageThumbnail } from './ImageThumbnail';
 import type { CodeAnnotation, ImageAttachment } from '../types';
-import type { LineEventBaseProps } from '@pierre/diffs';
 
 export interface CodeFileAnnotationInput {
   filePath: string;
