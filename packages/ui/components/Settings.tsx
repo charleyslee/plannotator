@@ -228,6 +228,7 @@ const ReviewDisplayTab: React.FC = () => {
   const diffLineDiffType = useConfigValue('diffLineDiffType');
   const diffShowLineNumbers = useConfigValue('diffShowLineNumbers');
   const diffShowBackground = useConfigValue('diffShowBackground');
+  const diffHideWhitespace = useConfigValue('diffHideWhitespace');
   const diffFontFamily = useConfigValue('diffFontFamily');
   const diffFontSize = useConfigValue('diffFontSize');
 
@@ -359,6 +360,16 @@ const ReviewDisplayTab: React.FC = () => {
         onChange={(v) => configStore.set('diffShowBackground', v)}
         label="Show Diff Background"
         description="Colored backgrounds on added/deleted lines"
+      />
+
+      <div className="border-t border-border" />
+
+      {/* Hide Whitespace */}
+      <ToggleSwitch
+        checked={diffHideWhitespace}
+        onChange={(v) => configStore.set('diffHideWhitespace', v)}
+        label="Hide Whitespace"
+        description="Ignore whitespace-only changes in diffs"
       />
 
     </>
