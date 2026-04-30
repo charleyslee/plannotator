@@ -622,7 +622,7 @@ const App: React.FC = () => {
 
   const handleRestoreDraft = React.useCallback(() => {
     const { annotations: restored, codeAnnotations: restoredCode, globalAttachments: restoredGlobal } = restoreDraft();
-    if (restored.length > 0 || restoredCode.length > 0) {
+    if (restored.length > 0 || restoredCode.length > 0 || restoredGlobal.length > 0) {
       setAnnotations(restored);
       setCodeAnnotations(restoredCode);
       if (restoredGlobal.length > 0) setGlobalAttachments(restoredGlobal);
