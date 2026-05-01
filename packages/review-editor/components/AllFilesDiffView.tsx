@@ -83,11 +83,14 @@ export const AllFilesDiffView: React.FC<AllFilesDiffViewProps> = ({
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const pendingToolbarRange = useRef<SelectedLineRange | null>(null);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
+  const collapseHistory = useRef<string[]>([]);
 
   useEffect(() => {
     setActiveFilePath(null);
     setCollapsedFiles(new Set());
+    collapseHistory.current = [];
   }, [files]);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const headerRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const conventionalCommentsEnabled = useConfigValue('conventionalComments');
@@ -150,9 +153,11 @@ export const AllFilesDiffView: React.FC<AllFilesDiffViewProps> = ({
   const toggleCollapse = useCallback((filePath: string) => {
     setCollapsedFiles(prev => {
       const next = new Set(prev);
-      if (next.has(filePath)) next.delete(filePath);
-      else {
+      if (next.has(filePath)) {
+        next.delete(filePath);
+      } else {
         next.add(filePath);
+        collapseHistory.current.push(filePath);
         if (activeFilePath === filePath) setActiveFilePath(null);
       }
       return next;
@@ -206,6 +211,28 @@ export const AllFilesDiffView: React.FC<AllFilesDiffViewProps> = ({
 
       const currentPath = activeFilePath || visibleFileRef.current;
 
+      if (e.key === 'z') {
+        // Find the most recent entry that's actually still collapsed
+        let last: string | undefined;
+        while (collapseHistory.current.length > 0) {
+          const candidate = collapseHistory.current.pop()!;
+          if (collapsedFiles.has(candidate)) { last = candidate; break; }
+        }
+        if (!last) return;
+        e.preventDefault();
+        setCollapsedFiles(prev => {
+          const next = new Set(prev);
+          next.delete(last!);
+          return next;
+        });
+        setActiveFilePath(last);
+        setTimeout(() => {
+          const header = headerRefs.current.get(last!);
+          header?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 50);
+        return;
+      }
+
       if (e.key === 'c' && currentPath) {
         e.preventDefault();
         toggleCollapse(currentPath);
@@ -215,6 +242,7 @@ export const AllFilesDiffView: React.FC<AllFilesDiffViewProps> = ({
       if (e.key === 'v' && currentPath) {
         e.preventDefault();
         onToggleViewed?.(currentPath);
+        collapseHistory.current.push(currentPath);
         setCollapsedFiles(prev => {
           const next = new Set(prev);
           next.add(currentPath);

@@ -137,6 +137,7 @@ const reviewShortcuts: ShortcutSection[] = [
       { keys: ['V'], desc: 'Toggle viewed', hint: 'In all-files view, also collapses the file' },
       { keys: ['A'], desc: 'Toggle git add / stage' },
       { keys: ['C'], desc: 'Collapse / expand file', hint: 'In all-files view, toggles the focused file' },
+      { keys: ['Z'], desc: 'Undo collapse', hint: 'Reopens the last collapsed file and scrolls to it' },
     ],
   },
   {
