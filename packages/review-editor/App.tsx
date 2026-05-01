@@ -39,6 +39,7 @@ import { DockviewReact, type DockviewReadyEvent, type DockviewApi } from 'dockvi
 import { ReviewHeaderMenu } from './components/ReviewHeaderMenu';
 import { ReviewSidebar } from './components/ReviewSidebar';
 import { FileTree } from './components/FileTree';
+import { AllFilesDiffView } from './components/AllFilesDiffView';
 import { StackedPRLabel } from './components/StackedPRLabel';
 import { PRSelector } from './components/PRSelector';
 import { PRSwitchOverlay } from './components/PRSwitchOverlay';
@@ -129,6 +130,9 @@ const ReviewApp: React.FC = () => {
   const [files, setFiles] = useState<DiffFile[]>([]);
   const [activeFileIndex, setActiveFileIndex] = useState(0);
   const [annotations, setAnnotations] = useState<CodeAnnotation[]>([]);
+  const [viewMode, setViewMode] = useState<'single' | 'all'>('single');
+  const [allFilesVisibleFile, setAllFilesVisibleFile] = useState<string | null>(null);
+  const [allFilesActiveFile, setAllFilesActiveFile] = useState<string | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [pendingSelection, setPendingSelection] = useState<SelectedLineRange | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -789,8 +793,8 @@ const ReviewApp: React.FC = () => {
     setPendingSelection(range);
   }, []);
 
-  // Add annotation
-  const handleAddAnnotation = useCallback((
+  const handleAddAnnotationForFile = useCallback((
+    filePath: string,
     type: CodeAnnotationType,
     text?: string,
     suggestedCode?: string,
@@ -799,17 +803,14 @@ const ReviewApp: React.FC = () => {
     decorations?: ConventionalDecoration[],
     tokenMeta?: TokenAnnotationMeta
   ) => {
-    if (!pendingSelection || !files[activeFileIndex]) return;
-
-    // Normalize line range (in case user selected bottom-to-top)
+    if (!pendingSelection) return;
     const lineStart = Math.min(pendingSelection.start, pendingSelection.end);
     const lineEnd = Math.max(pendingSelection.start, pendingSelection.end);
-
     const newAnnotation: CodeAnnotation = {
       id: generateId(),
       type,
       scope: 'line',
-      filePath: files[activeFileIndex].path,
+      filePath,
       lineStart,
       lineEnd,
       side: pendingSelection.side === 'additions' ? 'new' : 'old',
@@ -826,10 +827,22 @@ const ReviewApp: React.FC = () => {
       conventionalLabel,
       decorations,
     };
-
     setAnnotations(prev => [...prev, withPRContext(newAnnotation)]);
     setPendingSelection(null);
-  }, [pendingSelection, files, activeFileIndex, identity, withPRContext]);
+  }, [pendingSelection, identity, withPRContext]);
+
+  const handleAddAnnotation = useCallback((
+    type: CodeAnnotationType,
+    text?: string,
+    suggestedCode?: string,
+    originalCode?: string,
+    conventionalLabel?: ConventionalLabel,
+    decorations?: ConventionalDecoration[],
+    tokenMeta?: TokenAnnotationMeta
+  ) => {
+    if (!files[activeFileIndex]) return;
+    handleAddAnnotationForFile(files[activeFileIndex].path, type, text, suggestedCode, originalCode, conventionalLabel, decorations, tokenMeta);
+  }, [files, activeFileIndex, handleAddAnnotationForFile]);
 
   const handleAddFileComment = useCallback((text: string) => {
     const activeFile = files[activeFileIndex];
@@ -972,6 +985,25 @@ const ReviewApp: React.FC = () => {
   });
   // Staging is never available in PR review mode — the server rejects it and the UI shouldn't offer it.
   const canStageFiles = canStageRaw && !prMetadata;
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || isTypingTarget(e.target)) return;
+      if (!e.shiftKey) return;
+      const filePath = viewMode === 'all' ? (allFilesActiveFile || allFilesVisibleFile) : files[activeFileIndex]?.path;
+      if (!filePath) return;
+
+      if (e.key === 'V') {
+        e.preventDefault();
+        handleToggleViewed(filePath);
+      } else if (e.key === 'A' && canStageFiles) {
+        e.preventDefault();
+        stageFile(filePath);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [viewMode, allFilesActiveFile, allFilesVisibleFile, files, activeFileIndex, handleToggleViewed, canStageFiles, stageFile]);
 
   // Shared function: apply a PR response (used by both initial load and PR switch)
   function applyPRResponse(data: PRSessionUpdate & {
@@ -1906,8 +1938,11 @@ const ReviewApp: React.FC = () => {
               <FileTree
                 files={files}
                 activeFileIndex={activeFileIndex}
-                onSelectFile={handleFilePreview}
-                onDoubleClickFile={handleFilePinned}
+                viewMode={viewMode}
+                onSelectAllFiles={() => setViewMode('all')}
+                scrollHighlightIndex={viewMode === 'all' ? files.findIndex(f => f.path === (allFilesActiveFile || allFilesVisibleFile)) : undefined}
+                onSelectFile={(index) => { setViewMode('single'); handleFilePreview(index); }}
+                onDoubleClickFile={(index) => { setViewMode('single'); handleFilePinned(index); }}
                 annotations={allAnnotations}
                 viewedFiles={viewedFiles}
                 onToggleViewed={handleToggleViewed}
@@ -1967,13 +2002,50 @@ const ReviewApp: React.FC = () => {
               showCancel
             />
             {files.length > 0 ? (
-              <DockviewReact
-                className={`h-full ${resolvedMode === 'light' ? 'dockview-theme-light' : 'dockview-theme-dark'}`}
-                components={reviewPanelComponents}
-                defaultTabComponent={ReviewDockTabRenderer}
-                onReady={handleDockReady}
-                disableFloatingGroups
-              />
+              <>
+                <div style={{ display: viewMode === 'single' ? 'contents' : 'none' }}>
+                  <DockviewReact
+                    className={`h-full ${resolvedMode === 'light' ? 'dockview-theme-light' : 'dockview-theme-dark'}`}
+                    components={reviewPanelComponents}
+                    defaultTabComponent={ReviewDockTabRenderer}
+                    onReady={handleDockReady}
+                    disableFloatingGroups
+                  />
+                </div>
+                {viewMode === 'all' && (
+                  <AllFilesDiffView
+                    files={files}
+                    annotations={allAnnotations}
+                    selectedAnnotationId={selectedAnnotationId}
+                    pendingSelection={pendingSelection}
+                    onLineSelection={setPendingSelection}
+                    onAddAnnotation={handleAddAnnotationForFile}
+                    onEditAnnotation={handleEditAnnotation}
+                    onSelectAnnotation={handleSelectAnnotation}
+                    onDeleteAnnotation={handleDeleteAnnotation}
+                    diffStyle={diffStyle}
+                    diffOverflow={diffOverflow}
+                    diffIndicators={diffIndicators}
+                    lineDiffType={diffLineDiffType}
+                    disableLineNumbers={!diffShowLineNumbers}
+                    disableBackground={!diffShowBackground}
+                    fontFamily={diffFontFamily || undefined}
+                    fontSize={diffFontSize || undefined}
+                    viewedFiles={viewedFiles}
+                    onToggleViewed={handleToggleViewed}
+                    stagedFiles={stagedFiles}
+                    onStage={stageFile}
+                    canStageFiles={canStageFiles}
+                    stagingFile={stagingFile}
+                    stageError={stageError}
+                    reviewBase={selectedBase ?? gitContext?.defaultBranch}
+                    prUrl={prMetadata?.url}
+                    prDiffScope={prDiffScope}
+                    onVisibleFileChange={setAllFilesVisibleFile}
+                    onActiveFileChange={setAllFilesActiveFile}
+                  />
+                )}
+              </>
             ) : (
               <div className="h-full flex items-center justify-center">
                 <div className="text-center space-y-3 max-w-md px-8">

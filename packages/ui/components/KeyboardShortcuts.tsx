@@ -125,8 +125,17 @@ const reviewShortcuts: ShortcutSection[] = [
     shortcuts: [
       { keys: ['J'], desc: 'Next file' },
       { keys: ['K'], desc: 'Previous file' },
+      { keys: ['['], desc: 'Scroll to previous file', hint: 'In all-files view, scrolls the viewport to the previous file' },
+      { keys: [']'], desc: 'Scroll to next file', hint: 'In all-files view, scrolls the viewport to the next file' },
       { keys: ['Home'], desc: 'First file' },
       { keys: ['End'], desc: 'Last file' },
+    ],
+  },
+  {
+    title: 'File Actions',
+    shortcuts: [
+      { keys: ['⇧', 'V'], desc: 'Toggle viewed' },
+      { keys: ['⇧', 'A'], desc: 'Toggle git add / stage' },
     ],
   },
   {
