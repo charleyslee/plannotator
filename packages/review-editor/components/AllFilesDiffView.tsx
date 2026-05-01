@@ -44,7 +44,6 @@ interface AllFilesDiffViewProps {
   prUrl?: string;
   prDiffScope?: string;
   onVisibleFileChange?: (filePath: string | null) => void;
-  onActiveFileChange?: (filePath: string | null) => void;
 }
 
 export const AllFilesDiffView: React.FC<AllFilesDiffViewProps> = ({
@@ -76,7 +75,6 @@ export const AllFilesDiffView: React.FC<AllFilesDiffViewProps> = ({
   prUrl,
   prDiffScope,
   onVisibleFileChange,
-  onActiveFileChange,
 }) => {
   const pierreTheme = usePierreTheme({ fontFamily, fontSize });
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
@@ -168,7 +166,6 @@ export const AllFilesDiffView: React.FC<AllFilesDiffViewProps> = ({
       const containerTop = container.getBoundingClientRect().top;
       const expandedFiles = sortedFiles.filter(f => !collapsedFiles.has(f.path));
       let bestPath: string | null = expandedFiles[0]?.path ?? null;
-
       const atBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 20;
       if (atBottom && expandedFiles.length > 0) {
         bestPath = expandedFiles[expandedFiles.length - 1].path;
@@ -181,7 +178,6 @@ export const AllFilesDiffView: React.FC<AllFilesDiffViewProps> = ({
           else break;
         }
       }
-
       if (bestPath !== visibleFileRef.current) {
         visibleFileRef.current = bestPath;
         onVisibleFileChange(bestPath);
@@ -191,10 +187,6 @@ export const AllFilesDiffView: React.FC<AllFilesDiffViewProps> = ({
     container.addEventListener('scroll', onScroll, { passive: true });
     return () => container.removeEventListener('scroll', onScroll);
   }, [onVisibleFileChange, sortedFiles, collapsedFiles]);
-
-  useEffect(() => {
-    onActiveFileChange?.(activeFilePath);
-  }, [activeFilePath, onActiveFileChange]);
 
   // [ and ] to scroll between files
   useEffect(() => {
@@ -208,7 +200,7 @@ export const AllFilesDiffView: React.FC<AllFilesDiffViewProps> = ({
       const expandedFiles = sortedFiles.filter(f => !collapsedFiles.has(f.path));
       if (expandedFiles.length === 0) return;
 
-      const currentPath = activeFilePath || visibleFileRef.current;
+      const currentPath = activeFilePath;
       const currentIdx = currentPath ? expandedFiles.findIndex(f => f.path === currentPath) : -1;
 
       let targetIdx: number;

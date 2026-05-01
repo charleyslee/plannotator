@@ -39,7 +39,6 @@ import { DockviewReact, type DockviewReadyEvent, type DockviewApi } from 'dockvi
 import { ReviewHeaderMenu } from './components/ReviewHeaderMenu';
 import { ReviewSidebar } from './components/ReviewSidebar';
 import { FileTree } from './components/FileTree';
-import { AllFilesDiffView } from './components/AllFilesDiffView';
 import { StackedPRLabel } from './components/StackedPRLabel';
 import { PRSelector } from './components/PRSelector';
 import { PRSwitchOverlay } from './components/PRSwitchOverlay';
@@ -63,6 +62,7 @@ import {
   REVIEW_PR_SUMMARY_PANEL_ID,
   REVIEW_PR_COMMENTS_PANEL_ID,
   REVIEW_PR_CHECKS_PANEL_ID,
+  REVIEW_ALL_FILES_PANEL_ID,
 } from './dock/reviewPanelTypes';
 import type { DiffFile } from './types';
 import type { DiffOption, WorktreeInfo, GitContext } from '@plannotator/shared/types';
@@ -130,10 +130,9 @@ const ReviewApp: React.FC = () => {
   const [files, setFiles] = useState<DiffFile[]>([]);
   const [activeFileIndex, setActiveFileIndex] = useState(0);
   const [annotations, setAnnotations] = useState<CodeAnnotation[]>([]);
-  const [viewMode, setViewMode] = useState<'single' | 'all'>('single');
-  const [allFilesVisibleFile, setAllFilesVisibleFile] = useState<string | null>(null);
-  const [allFilesActiveFile, setAllFilesActiveFile] = useState<string | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [isAllFilesActive, setIsAllFilesActive] = useState(false);
+  const [allFilesVisibleFile, setAllFilesVisibleFile] = useState<string | null>(null);
   const [pendingSelection, setPendingSelection] = useState<SelectedLineRange | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showWorktreeDialog, setShowWorktreeDialog] = useState(false);
@@ -528,7 +527,9 @@ const ReviewApp: React.FC = () => {
 
     // Sync activeFileIndex when user switches between dock tabs
     event.api.onDidActivePanelChange((panel) => {
-      if (!panel || !isReviewDiffPanelId(panel.id)) return;
+      if (!panel) { setIsAllFilesActive(false); return; }
+      setIsAllFilesActive(panel.id === REVIEW_ALL_FILES_PANEL_ID);
+      if (!isReviewDiffPanelId(panel.id)) return;
       const filePath = getReviewDiffPanelFilePath(panel.params);
       if (!filePath) return;
       const fileIndex = filesRef.current.findIndex(file => file.path === filePath);
@@ -636,6 +637,17 @@ const ReviewApp: React.FC = () => {
       id: config.id,
       component: config.component,
       title: config.title,
+    });
+  }, [dockApi]);
+
+  const openAllFilesPanel = useCallback(() => {
+    if (!dockApi) return;
+    const existing = dockApi.getPanel(REVIEW_ALL_FILES_PANEL_ID);
+    if (existing) { existing.api.setActive(); return; }
+    dockApi.addPanel({
+      id: REVIEW_ALL_FILES_PANEL_ID,
+      component: REVIEW_PANEL_TYPES.ALL_FILES,
+      title: 'All files',
     });
   }, [dockApi]);
 
@@ -990,7 +1002,7 @@ const ReviewApp: React.FC = () => {
     const handler = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || isTypingTarget(e.target)) return;
       if (!e.shiftKey) return;
-      const filePath = viewMode === 'all' ? (allFilesActiveFile || allFilesVisibleFile) : files[activeFileIndex]?.path;
+      const filePath = files[activeFileIndex]?.path;
       if (!filePath) return;
 
       if (e.key === 'V') {
@@ -1003,7 +1015,7 @@ const ReviewApp: React.FC = () => {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [viewMode, allFilesActiveFile, allFilesVisibleFile, files, activeFileIndex, handleToggleViewed, canStageFiles, stageFile]);
+  }, [files, activeFileIndex, handleToggleViewed, canStageFiles, stageFile]);
 
   // Shared function: apply a PR response (used by both initial load and PR switch)
   function applyPRResponse(data: PRSessionUpdate & {
@@ -1271,6 +1283,7 @@ const ReviewApp: React.FC = () => {
     pendingSelection,
     onLineSelection: handleLineSelection,
     onAddAnnotation: handleAddAnnotation,
+    onAddAnnotationForFile: handleAddAnnotationForFile,
     onAddFileComment: handleAddFileComment,
     onEditAnnotation: handleEditAnnotation,
     onSelectAnnotation: handleSelectAnnotation,
@@ -1303,6 +1316,7 @@ const ReviewApp: React.FC = () => {
     fetchPRContext,
     platformUser,
     openDiffFile,
+    onAllFilesVisibleFileChange: setAllFilesVisibleFile,
     openTourPanel: handleOpenTour,
   }), [
     files, activeFileIndex, diffStyle, diffOverflow, diffIndicators,
@@ -1938,11 +1952,11 @@ const ReviewApp: React.FC = () => {
               <FileTree
                 files={files}
                 activeFileIndex={activeFileIndex}
-                viewMode={viewMode}
-                onSelectAllFiles={() => setViewMode('all')}
-                scrollHighlightIndex={viewMode === 'all' ? files.findIndex(f => f.path === (allFilesActiveFile || allFilesVisibleFile)) : undefined}
-                onSelectFile={(index) => { setViewMode('single'); handleFilePreview(index); }}
-                onDoubleClickFile={(index) => { setViewMode('single'); handleFilePinned(index); }}
+                onSelectAllFiles={openAllFilesPanel}
+                isAllFilesActive={isAllFilesActive}
+                scrollHighlightIndex={isAllFilesActive && allFilesVisibleFile ? files.findIndex(f => f.path === allFilesVisibleFile) : undefined}
+                onSelectFile={handleFilePreview}
+                onDoubleClickFile={handleFilePinned}
                 annotations={allAnnotations}
                 viewedFiles={viewedFiles}
                 onToggleViewed={handleToggleViewed}
@@ -2002,50 +2016,13 @@ const ReviewApp: React.FC = () => {
               showCancel
             />
             {files.length > 0 ? (
-              <>
-                <div style={{ display: viewMode === 'single' ? 'contents' : 'none' }}>
-                  <DockviewReact
-                    className={`h-full ${resolvedMode === 'light' ? 'dockview-theme-light' : 'dockview-theme-dark'}`}
-                    components={reviewPanelComponents}
-                    defaultTabComponent={ReviewDockTabRenderer}
-                    onReady={handleDockReady}
-                    disableFloatingGroups
-                  />
-                </div>
-                {viewMode === 'all' && (
-                  <AllFilesDiffView
-                    files={files}
-                    annotations={allAnnotations}
-                    selectedAnnotationId={selectedAnnotationId}
-                    pendingSelection={pendingSelection}
-                    onLineSelection={setPendingSelection}
-                    onAddAnnotation={handleAddAnnotationForFile}
-                    onEditAnnotation={handleEditAnnotation}
-                    onSelectAnnotation={handleSelectAnnotation}
-                    onDeleteAnnotation={handleDeleteAnnotation}
-                    diffStyle={diffStyle}
-                    diffOverflow={diffOverflow}
-                    diffIndicators={diffIndicators}
-                    lineDiffType={diffLineDiffType}
-                    disableLineNumbers={!diffShowLineNumbers}
-                    disableBackground={!diffShowBackground}
-                    fontFamily={diffFontFamily || undefined}
-                    fontSize={diffFontSize || undefined}
-                    viewedFiles={viewedFiles}
-                    onToggleViewed={handleToggleViewed}
-                    stagedFiles={stagedFiles}
-                    onStage={stageFile}
-                    canStageFiles={canStageFiles}
-                    stagingFile={stagingFile}
-                    stageError={stageError}
-                    reviewBase={selectedBase ?? gitContext?.defaultBranch}
-                    prUrl={prMetadata?.url}
-                    prDiffScope={prDiffScope}
-                    onVisibleFileChange={setAllFilesVisibleFile}
-                    onActiveFileChange={setAllFilesActiveFile}
-                  />
-                )}
-              </>
+              <DockviewReact
+                className={`h-full ${resolvedMode === 'light' ? 'dockview-theme-light' : 'dockview-theme-dark'}`}
+                components={reviewPanelComponents}
+                defaultTabComponent={ReviewDockTabRenderer}
+                onReady={handleDockReady}
+                disableFloatingGroups
+              />
             ) : (
               <div className="h-full flex items-center justify-center">
                 <div className="text-center space-y-3 max-w-md px-8">

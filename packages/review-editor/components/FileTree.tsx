@@ -52,8 +52,8 @@ interface FileTreeProps {
   activeSearchMatchId?: string | null;
   onSelectSearchMatch?: (matchId: string) => void;
   onStepSearchMatch?: (direction: 1 | -1) => void;
-  viewMode?: 'single' | 'all';
   onSelectAllFiles?: () => void;
+  isAllFilesActive?: boolean;
   scrollHighlightIndex?: number;
 }
 
@@ -98,8 +98,8 @@ export const FileTree: React.FC<FileTreeProps> = ({
   activeSearchMatchId,
   onSelectSearchMatch,
   onStepSearchMatch,
-  viewMode = 'single',
   onSelectAllFiles,
+  isAllFilesActive = false,
   scrollHighlightIndex,
 }) => {
   const isSearchVisible = !!onSearchChange && (isSearchOpen || !!searchQuery.trim());
@@ -135,30 +135,22 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
     if (e.key === 'j' || e.key === 'ArrowDown') {
       e.preventDefault();
-      if (viewMode === 'all') {
-        onSelectFile(visualOrder[0]);
-      } else if (visualPos < visualOrder.length - 1) {
+      if (visualPos < visualOrder.length - 1) {
         onSelectFile(visualOrder[visualPos + 1]);
       }
     } else if (e.key === 'k' || e.key === 'ArrowUp') {
       e.preventDefault();
-      if (visualPos === 0 && onSelectAllFiles) {
-        onSelectAllFiles();
-      } else if (viewMode !== 'all' && visualPos > 0) {
+      if (visualPos > 0) {
         onSelectFile(visualOrder[visualPos - 1]);
       }
     } else if (e.key === 'Home') {
       e.preventDefault();
-      if (onSelectAllFiles) {
-        onSelectAllFiles();
-      } else {
-        onSelectFile(visualOrder[0]);
-      }
+      onSelectFile(visualOrder[0]);
     } else if (e.key === 'End') {
       e.preventDefault();
       onSelectFile(visualOrder[visualOrder.length - 1]);
     }
-  }, [enableKeyboardNav, activeFileIndex, visualOrder, onSelectFile, viewMode, onSelectAllFiles]);
+  }, [enableKeyboardNav, activeFileIndex, visualOrder, onSelectFile]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -422,7 +414,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
             <button
               onClick={onSelectAllFiles}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors mb-0.5 ${
-                viewMode === 'all'
+                isAllFilesActive
                   ? 'bg-primary/15 text-primary font-medium'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
@@ -444,8 +436,8 @@ export const FileTree: React.FC<FileTreeProps> = ({
               node={node}
               expandedFolders={expandedFolders}
               onToggleFolder={handleToggleFolder}
-              activeFileIndex={viewMode === 'all' ? -1 : activeFileIndex}
-              scrollHighlightIndex={viewMode === 'all' ? scrollHighlightIndex : undefined}
+              activeFileIndex={isAllFilesActive ? -1 : activeFileIndex}
+              scrollHighlightIndex={isAllFilesActive ? scrollHighlightIndex : undefined}
               onSelectFile={onSelectFile}
               onDoubleClickFile={onDoubleClickFile}
               viewedFiles={viewedFiles}
