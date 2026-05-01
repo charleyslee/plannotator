@@ -14,6 +14,7 @@ import { FileHeader } from './FileHeader';
 import { detectLanguage } from '../utils/detectLanguage';
 import type { DiffFile } from '../types';
 import { buildFileTree, getVisualFileOrder } from '../utils/buildFileTree';
+import { getLineNumberFromNode, getSideFromNode, getDiffSelection } from '../utils/diffSelection';
 
 interface AllFilesDiffViewProps {
   files: DiffFile[];
@@ -244,7 +245,53 @@ export const AllFilesDiffView: React.FC<AllFilesDiffViewProps> = ({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [sortedFiles, collapsedFiles, activeFilePath]);
+  }, [sortedFiles, collapsedFiles, activeFilePath, onToggleViewed, canStageFiles, onStage]);
+
+  // Click-and-drag line selection in diff content
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const handler = () => {
+      requestAnimationFrame(() => {
+        const selection = getDiffSelection(root);
+        if (!selection || selection.isCollapsed || !selection.toString().trim()) return;
+        const anchorLine = getLineNumberFromNode(selection.anchorNode);
+        const focusLine = getLineNumberFromNode(selection.focusNode);
+        if (anchorLine == null || focusLine == null) return;
+        const side = getSideFromNode(selection.anchorNode);
+        // Determine which file the selection is in by checking header positions
+        const anchorRect = selection.getRangeAt(0).getBoundingClientRect();
+        let closestFile: string | null = null;
+        for (const file of sortedFiles) {
+          const header = headerRefs.current.get(file.path);
+          if (header && header.getBoundingClientRect().top <= anchorRect.top) {
+            closestFile = file.path;
+          }
+        }
+        if (closestFile) {
+          if (activeFilePath !== closestFile) {
+            pendingToolbarRange.current = {
+              start: Math.min(anchorLine, focusLine),
+              end: Math.max(anchorLine, focusLine),
+              side,
+            };
+            setActiveFilePath(closestFile);
+            selection.removeAllRanges();
+            return;
+          }
+          setActiveFilePath(closestFile);
+        }
+        toolbar.handleLineSelectionEnd({
+          start: Math.min(anchorLine, focusLine),
+          end: Math.max(anchorLine, focusLine),
+          side,
+        });
+        selection.removeAllRanges();
+      });
+    };
+    root.addEventListener('mouseup', handler, true);
+    return () => root.removeEventListener('mouseup', handler, true);
+  }, [toolbar.handleLineSelectionEnd, sortedFiles, activeFilePath]);
 
   // Scroll to selected annotation — auto-expand collapsed file
   useEffect(() => {
