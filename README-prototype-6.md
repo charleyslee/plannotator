@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="apps/marketing/public/plannotator.webp" alt="Plannotator" width="180" />
+  <img src="apps/marketing/public/og-image.webp" alt="Plannotator" width="80%" />
 </p>
 
 <h1 align="center">Plannotator</h1>
@@ -18,24 +18,6 @@
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=a_AT7cEN_9I">Watch demo</a> &middot; <a href="https://plannotator.ai/docs/getting-started/installation/">Install</a> &middot; <a href="https://plannotator.ai/docs/">Docs</a> &middot; <a href="https://share.plannotator.ai">Try it live</a>
-</p>
-
----
-
-Your agent writes a plan. You get a `y/n` prompt in the terminal. You skim it, press `y`, and three minutes later you're undoing damage.
-
-Plannotator replaces that moment with a real review workspace. Your agent's plan opens in the browser — select text, comment on it, mark things for deletion, write replacements. When you deny, your annotations go back as structured feedback the agent can act on. When you approve, you know what you approved.
-
-Same workflow for code: `/plannotator-review` gives you a PR-style diff viewer over your agent's uncommitted changes — or any GitHub/GitLab PR URL.
-
-Runs entirely on your machine. Plans never leave your browser. Free and open source.
-
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=a_AT7cEN_9I">
-    <img src="apps/marketing/public/youtube.png" alt="Watch the Plannotator demo" width="640" />
-  </a>
-  <br/>
-  <sub>2-minute demo — Claude Code plan review</sub>
 </p>
 
 ---
@@ -156,27 +138,48 @@ Plannotator works with **Claude Code**, **Copilot CLI**, **Gemini CLI**, **OpenC
 
 ---
 
-## How It Works
+## Usage
 
-**Plan review** is automatic. Your agent enters plan mode, Plannotator hooks into the approval step:
+Plan review activates automatically when your agent enters plan mode — no command needed.
 
-```
-Agent proposes plan → browser opens → you annotate → approve or deny with feedback
+### Commands
+
+| Command | Description |
+|---|---|
+| `/plannotator-review` | Review uncommitted changes in a PR-style diff viewer |
+| `/plannotator-review <pr-url>` | Review a GitHub or GitLab pull request by URL |
+| `/plannotator-annotate <file>` | Annotate a markdown or HTML file |
+| `/plannotator-annotate <folder>` | Browse and annotate files in a directory |
+| `/plannotator-annotate <url>` | Fetch a URL and annotate its content |
+| `/plannotator-last` | Annotate the agent's last response |
+
+### CLI (Codex, standalone)
+
+```bash
+plannotator review                    # review uncommitted changes
+plannotator review <pr-url>           # review a GitHub or GitLab PR
+plannotator annotate <file|folder|url>
+plannotator last                      # annotate last agent message
 ```
 
-**Code review** is on demand:
+### Diff options
 
-```
-/plannotator-review              # review uncommitted changes
-/plannotator-review <pr-url>     # review a GitHub or GitLab PR
-```
+| Flag | Description |
+|---|---|
+| `--staged` | Review staged changes only |
+| `--base <branch>` | Diff against a specific branch (default: `main`) |
+| `--hide-whitespace` | Ignore whitespace-only changes |
 
-**Annotate** anything — files, folders, URLs, or the agent's last message:
+### Environment variables
 
-```
-/plannotator-annotate <file|folder|url>
-/plannotator-last
-```
+| Variable | Default | Description |
+|---|---|---|
+| `PLANNOTATOR_REMOTE` | auto-detect | `1` for remote mode (fixed port, no auto-browser) |
+| `PLANNOTATOR_PORT` | random / `19432` | Fixed port for the review server |
+| `PLANNOTATOR_BROWSER` | system default | Custom browser to open reviews in |
+| `PLANNOTATOR_SHARE` | enabled | Set to `disabled` to turn off URL sharing |
+| `PLANNOTATOR_JINA` | enabled | `0` to disable Jina Reader for URL annotation |
+| `JINA_API_KEY` | — | Jina Reader API key for higher rate limits |
 
 ---
 
