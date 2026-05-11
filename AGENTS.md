@@ -28,11 +28,11 @@ plannotator/
 │   │   ├── index.html
 │   │   ├── index.tsx
 │   │   └── vite.config.ts
-│   └── vscode-extension/         # VS Code extension — opens plans in editor tabs
-│       ├── bin/                   # Router scripts (open-in-vscode, xdg-open)
-│       ├── src/                   # extension.ts, cookie-proxy.ts, ipc-server.ts, panel-manager.ts, editor-annotations.ts, vscode-theme.ts
-│       └── package.json           # Extension manifest (publisher: backnotprop)
-│   └── skills/                      # Agent skills (agentskills.io format)
+│   ├── vscode-extension/         # VS Code extension — opens plans in editor tabs
+│   │   ├── bin/                   # Router scripts (open-in-vscode, xdg-open)
+│   │   ├── src/                   # extension.ts, cookie-proxy.ts, ipc-server.ts, panel-manager.ts, editor-annotations.ts, vscode-theme.ts
+│   │   └── package.json           # Extension manifest (publisher: backnotprop)
+│   └── skills/                    # Agent skills (agentskills.io format)
 │       ├── plannotator-review/          # Lightweight: opens review UI
 │       ├── plannotator-annotate/        # Lightweight: opens annotate UI
 │       ├── plannotator-last/            # Lightweight: annotates last message
