@@ -88,6 +88,14 @@ export function ThemeProvider({
     window.document.documentElement.className = resolveThemeClasses(colorTheme, resolvedMode);
   }, [resolvedMode, colorTheme]);
 
+  // Enable color transitions after mount settles — prevents the global *
+  // transition rule from firing during initial load.
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      document.documentElement.classList.add('transitions-ready');
+    });
+  }, []);
+
   // [P2 fix] Listen for system theme changes AND re-read current value when
   // entering system mode (OS may have changed while pinned to explicit mode)
   useEffect(() => {
