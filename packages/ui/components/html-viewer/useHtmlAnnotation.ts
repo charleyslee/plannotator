@@ -251,8 +251,8 @@ export function useHtmlAnnotation({
     pendingTextRef.current = "";
   }, []);
 
-  const handleQuickLabel = useCallback(
-    (label: QuickLabel) => {
+  const applyQuickLabel = useCallback(
+    (label: QuickLabel, clearState: () => void) => {
       const text = pendingTextRef.current;
       if (!text) return;
       const id = `html-ann-${Date.now()}`;
@@ -270,35 +270,20 @@ export function useHtmlAnnotation({
         author: getIdentity(),
         createdA: Date.now(),
       });
-      setToolbarState(null);
+      clearState();
       pendingTextRef.current = "";
     },
     [iframeRef],
   );
 
+  const handleQuickLabel = useCallback(
+    (label: QuickLabel) => applyQuickLabel(label, () => setToolbarState(null)),
+    [applyQuickLabel],
+  );
+
   const handleFloatingQuickLabel = useCallback(
-    (label: QuickLabel) => {
-      const text = pendingTextRef.current;
-      if (!text) return;
-      const id = `html-ann-${Date.now()}`;
-      postToIframe(iframeRef.current, { type: `${PREFIX}create-mark`, id, annotationType: "comment" });
-      onAddRef.current?.({
-        id,
-        blockId: "",
-        startOffset: 0,
-        endOffset: 0,
-        type: AnnotationType.COMMENT,
-        text: label.text,
-        originalText: text,
-        isQuickLabel: true,
-        quickLabelTip: label.tip,
-        author: getIdentity(),
-        createdA: Date.now(),
-      });
-      setQuickLabelPicker(null);
-      pendingTextRef.current = "";
-    },
-    [iframeRef],
+    (label: QuickLabel) => applyQuickLabel(label, () => setQuickLabelPicker(null)),
+    [applyQuickLabel],
   );
 
   const handleQuickLabelPickerDismiss = useCallback(() => {

@@ -145,6 +145,8 @@ export function useSharing(
             setMarkdown('');
           } else {
             setMarkdown(payload.p);
+            setRenderAs?.('markdown');
+            setRawHtml?.('');
           }
 
           const restoredAnnotations = fromShareable(payload.a, payload.d, payload.s);
@@ -189,6 +191,8 @@ export function useSharing(
           setMarkdown('');
         } else {
           setMarkdown(payload.p);
+          setRenderAs?.('markdown');
+          setRawHtml?.('');
         }
 
         // Convert shareable annotations to full annotations
@@ -231,7 +235,7 @@ export function useSharing(
       setShareLoadError('Failed to load shared plan — an unexpected error occurred.');
       return false;
     }
-  }, [setMarkdown, setAnnotations, setGlobalAttachments, onSharedLoad, pasteApiUrl]);
+  }, [setMarkdown, setAnnotations, setGlobalAttachments, onSharedLoad, pasteApiUrl, setRawHtml, setRenderAs]);
 
   // Load from hash on mount
   useEffect(() => {
@@ -342,10 +346,15 @@ export function useSharing(
         payload = (await decompress(hash)) as SharePayload;
       }
 
-      // Extract plan title from embedded plan text
-      const lines = (payload.p || payload.h || '').trim().split('\n');
-      const titleLine = lines.find(l => l.startsWith('#'));
-      const planTitle = titleLine ? titleLine.replace(/^#+\s*/, '').trim() : 'Unknown Plan';
+      // Extract plan title from embedded plan text (or HTML <title>)
+      let planTitle = 'Unknown Plan';
+      if (payload.p) {
+        const titleLine = payload.p.trim().split('\n').find(l => l.startsWith('#'));
+        if (titleLine) planTitle = titleLine.replace(/^#+\s*/, '').trim();
+      } else if (payload.h) {
+        const titleMatch = payload.h.match(/<title[^>]*>([^<]+)<\/title>/i);
+        if (titleMatch) planTitle = titleMatch[1].trim();
+      }
 
       // Convert to full annotations
       const importedAnnotations = fromShareable(payload.a, payload.d, payload.s);

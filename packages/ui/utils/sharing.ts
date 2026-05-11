@@ -166,6 +166,7 @@ export async function generateShareUrl(
   baseUrl: string = DEFAULT_SHARE_BASE,
   rawHtml?: string,
 ): Promise<string | null> {
+  // HTML content is too large for URL hashes — force paste service path
   if (rawHtml) return null;
   const diffContexts = buildDiffContextArray(annotations);
   const sources = buildSourceArray(annotations);

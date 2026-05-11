@@ -1451,8 +1451,10 @@ const App: React.FC = () => {
   };
 
   const handleCopyShareLink = async () => {
+    const url = shortShareUrl || shareUrl;
+    if (!url) return;
     try {
-      await navigator.clipboard.writeText(shortShareUrl || shareUrl);
+      await navigator.clipboard.writeText(url);
       setNoteSaveToast({ type: 'success', message: 'Share link copied' });
     } catch {
       setNoteSaveToast({ type: 'error', message: 'Failed to copy' });
