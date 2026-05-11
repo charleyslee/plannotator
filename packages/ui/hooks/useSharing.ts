@@ -8,7 +8,7 @@
  * - Tracking whether current session is from a shared link
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Annotation, type ImageAttachment } from '../types';
 import {
   type SharePayload,
@@ -273,11 +273,15 @@ export function useSharing(
   }, [refreshShareUrl]);
 
   // Clear stale short URL when content changes (does NOT auto-regenerate —
-  // the user must explicitly click "Create short link" again)
+  // the user must explicitly click "Create short link" again).
+  // Skip on shared session load — the incoming short URL must survive.
+  const isSharedRef = useRef(false);
   useEffect(() => {
+    if (isSharedSession) { isSharedRef.current = true; return; }
+    if (isSharedRef.current) { isSharedRef.current = false; return; }
     setShortShareUrl('');
     setShortUrlError('');
-  }, [markdown, annotations, rawHtml]);
+  }, [markdown, annotations, rawHtml, isSharedSession]);
 
   /**
    * Generate a short URL via the paste service.
