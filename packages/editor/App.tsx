@@ -12,10 +12,7 @@ import { Annotation, Block, EditorMode, type CodeAnnotation, type InputMethod, t
 import { ThemeProvider } from '@plannotator/ui/components/ThemeProvider';
 import { Tooltip, TooltipProvider } from '@plannotator/ui/components/Tooltip';
 import { AnnotationToolstrip } from '@plannotator/ui/components/AnnotationToolstrip';
-import { FeedbackButton, ApproveButton, ExitButton } from '@plannotator/ui/components/ToolbarButtons';
-import { ApproveDropdown } from '@plannotator/ui/components/ApproveDropdown';
-import { PlanHeaderMenu } from '@plannotator/ui/components/PlanHeaderMenu';
-import { Settings } from '@plannotator/ui/components/Settings';
+import { AppHeader } from './components/AppHeader';
 import { StickyHeaderLane } from '@plannotator/ui/components/StickyHeaderLane';
 import { TaterSpriteRunning } from '@plannotator/ui/components/TaterSpriteRunning';
 import { TaterSpritePullup } from '@plannotator/ui/components/TaterSpritePullup';
@@ -1813,7 +1810,7 @@ const App: React.FC<AppProps> = ({ roomSession }) => {
 
   // Header handlers ref — stores latest handler references so the stable
   // callbacks below always call the current version without needing useCallback
-  // dep arrays for every handler. Used by AppHeader (not yet adopted in room mode).
+  // dep arrays for every handler. Enables React.memo on AppHeader.
   const headerHandlersRef = useRef({
     handleApprove,
     handleDeny,
@@ -1902,6 +1899,14 @@ const App: React.FC<AppProps> = ({ roomSession }) => {
   const handleSaveToObsidian = useCallback(() => headerHandlersRef.current.handleQuickSaveToNotes('obsidian'), []);
   const handleSaveToOctarine = useCallback(() => headerHandlersRef.current.handleQuickSaveToNotes('octarine'), []);
   const handleSaveToBear = useCallback(() => headerHandlersRef.current.handleQuickSaveToNotes('bear'), []);
+  const handleHeaderStartLiveRoom = useMemo(
+    () => canStartLiveRoom ? handleStartLiveRoom : undefined,
+    [canStartLiveRoom, handleStartLiveRoom],
+  );
+  const handleHeaderRoomDelete = useCallback(() => {
+    toast.success('Room deleted');
+    void roomAdmin.run('delete');
+  }, [roomAdmin]);
 
   const planMaxWidth = useMemo(() => {
     const widths: Record<PlanWidth, number> = { compact: 832, default: 1040, wide: 1280 };
@@ -1914,264 +1919,73 @@ const App: React.FC<AppProps> = ({ roomSession }) => {
     <ThemeProvider defaultTheme="dark">
       <TooltipProvider delayDuration={900} skipDelayDuration={200} disableHoverableContent>
       <div data-print-region="root" className="h-screen flex flex-col bg-background overflow-hidden">
-        {/* Minimal Header */}
-        <header data-app-header="true" className="h-12 flex items-center justify-between px-2 md:px-4 border-b border-border/50 bg-card/50 backdrop-blur-xl sticky top-0 z-[50]">
-          <div className="flex items-center gap-2 md:gap-3">
-            <a
-              href="https://plannotator.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 md:gap-2 hover:opacity-80 transition-opacity"
-            >
-              <span className="text-sm font-semibold tracking-tight">Plannotator</span>
-            </a>
-          </div>
-
-          <div className="flex items-center gap-1 md:gap-2">
-            {/* Bot callback buttons — only shown when ?cb=&ct= params are present */}
-            {callbackConfig && !isApiMode && isSharedSession && (
-              <>
-                <div className="w-px h-5 bg-border/50 mx-1 hidden md:block" />
-                <FeedbackButton
-                  onClick={handleCallbackFeedback}
-                  disabled={isSubmitting || !shareUrl}
-                  isLoading={isSubmitting}
-                  title="Send feedback to bot"
-                />
-                <ApproveButton
-                  onClick={handleCallbackApprove}
-                  disabled={isSubmitting || !shareUrl}
-                  isLoading={isSubmitting}
-                  title="Approve design and notify bot"
-                />
-              </>
-            )}
-
-            {isApiMode && !linkedDocHook.isActive && archive.archiveMode && (
-              <>
-                <button
-                  onClick={archive.copy}
-                  className="px-2.5 py-1 rounded-md text-xs font-medium transition-all bg-muted text-foreground hover:bg-muted/80 border border-border"
-                  title="Copy plan content"
-                >
-                  <span className="hidden md:inline">Copy</span>
-                  <svg className="w-4 h-4 md:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={archive.done}
-                  className="px-2.5 py-1 rounded-md text-xs font-medium transition-all bg-success text-success-foreground hover:opacity-90"
-                  title="Close archive"
-                >
-                  Done
-                </button>
-              </>
-            )}
-
-            {submitError && (
-              <div className="text-xs text-destructive max-w-[260px] truncate" title={submitError}>
-                {submitError}
-              </div>
-            )}
-
-            {approveDenyAvailable && (!linkedDocHook.isActive || annotateMode) && !archive.archiveMode && (
-              <>
-                {annotateMode ? (
-                  // Annotate mode: Close always visible, Send Annotations when annotations exist,
-                  // Approve only when gate (review) mode is enabled (#570).
-                  <>
-                    <ExitButton
-                      onClick={() => {
-                        if (hasAnyAnnotations) {
-                          setExitWarningAction('close');
-                          setShowExitWarning(true);
-                        } else {
-                          handleAnnotateExit();
-                        }
-                      }}
-                      disabled={isSubmitting || isExiting}
-                      isLoading={isExiting}
-                    />
-                    {hasAnyAnnotations && (
-                      <FeedbackButton
-                        onClick={handleAnnotateFeedback}
-                        disabled={isSubmitting || isExiting}
-                        isLoading={isSubmitting}
-                        label="Send Annotations"
-                        title="Send Annotations"
-                      />
-                    )}
-                  </>
-                ) : (
-                  // Plan mode: Send Feedback
-                  <FeedbackButton
-                    onClick={() => {
-                      const docAnnotations = linkedDocHook.getDocAnnotations();
-                      const hasDocAnnotations = Array.from(docAnnotations.values()).some(
-                        (d) => d.annotations.length > 0 || d.globalAttachments.length > 0
-                      );
-                      if (allAnnotations.length === 0 && codeAnnotations.length === 0 && editorAnnotations.length === 0 && !hasDocAnnotations) {
-                        setShowFeedbackPrompt(true);
-                      } else {
-                        handleDeny();
-                      }
-                    }}
-                    disabled={isSubmitting}
-                    isLoading={isSubmitting}
-                    label="Send Feedback"
-                    title="Send Feedback"
-                  />
-                )}
-
-                {(!annotateMode || gate) && (
-                  origin === 'opencode' && !annotateMode && availableAgents.length > 0 ? (
-                    <ApproveDropdown
-                      onApprove={() => {
-                        const warning = getAgentWarning();
-                        if (warning) {
-                          setAgentWarningMessage(warning);
-                          setShowAgentWarning(true);
-                          return;
-                        }
-                        handleApprove();
-                      }}
-                      agents={availableAgents}
-                      disabled={isSubmitting}
-                      isLoading={isSubmitting}
-                    />
-                  ) : (
-                    <div className="relative group/approve">
-                      <ApproveButton
-                        onClick={() => {
-                          if (annotateMode) {
-                            if (hasAnyAnnotations) {
-                              setExitWarningAction('approve');
-                              setShowExitWarning(true);
-                              return;
-                            }
-                            handleAnnotateApprove();
-                            return;
-                          }
-                          if (origin === 'claude-code' && (allAnnotations.length > 0 || codeAnnotations.length > 0)) {
-                            setShowClaudeCodeWarning(true);
-                            return;
-                          }
-                          if (origin === 'opencode') {
-                            const warning = getAgentWarning();
-                            if (warning) {
-                              setAgentWarningMessage(warning);
-                              setShowAgentWarning(true);
-                              return;
-                            }
-                          }
-                          handleApprove();
-                        }}
-                        disabled={isSubmitting || (annotateMode && isExiting)}
-                        isLoading={isSubmitting}
-                        dimmed={!annotateMode && (origin === 'claude-code' || origin === 'gemini-cli') && (allAnnotations.length > 0 || codeAnnotations.length > 0)}
-                        title={annotateMode ? 'Approve — no changes requested' : undefined}
-                      />
-                      {!annotateMode && (origin === 'claude-code' || origin === 'gemini-cli') && (allAnnotations.length > 0 || codeAnnotations.length > 0) && (
-                        <div className="absolute top-full right-0 mt-2 px-3 py-2 bg-popover border border-border rounded-lg shadow-xl text-xs text-foreground w-56 text-center opacity-0 invisible group-hover/approve:opacity-100 group-hover/approve:visible transition-all pointer-events-none z-50">
-                          <div className="absolute bottom-full right-4 border-4 border-transparent border-b-border" />
-                          <div className="absolute bottom-full right-4 mt-px border-4 border-transparent border-b-popover" />
-                          {agentName} doesn't support feedback on approval. Your annotations won't be seen.
-                        </div>
-                      )}
-                    </div>
-                  )
-                )}
-
-                <div className="w-px h-5 bg-border/50 mx-1 hidden md:block" />
-              </>
-            )}
-
-            {/*
-              Room mode cluster: conditional status pill (only when
-              state is non-default — reconnecting / offline / deleted),
-              peer avatar bubbles, and a Room actions dropdown. Sits
-              between the approve/deny area (hidden in room mode) and
-              the annotations-panel toggle. Replaces the previous
-              floating `RoomPanel` aside — one visually-grouped
-              header cluster instead of a separate fixed card.
-            */}
-            {roomModeActive && roomSession?.room && (
-              <RoomHeaderControls
-                connectionStatus={roomSession.room.connectionStatus}
-                remotePresence={roomSession.room.remotePresence}
-                isAdmin={roomSession.room.hasAdminCapability}
-                adminUrl={roomSession.adminUrl}
-                pendingAdminAction={roomAdmin.pending}
-                onCopyParticipantUrl={handleCopyParticipantUrl}
-                onCopyAdminUrl={handleCopyAdminUrl}
-                onCopyConsolidatedFeedback={handleCopyConsolidatedFeedback}
-                onCopyAgentInstructions={handleCopyRoomAgentInstructions}
-                onDelete={() => {
-                  // Flash a toast confirming the intent BEFORE dispatching
-                  // the delete. The admin command tears the socket down on
-                  // success, which transitions this tab to the terminal
-                  // screen — the toast is the last UX before that swap,
-                  // so it has to fire first.
-                  toast.success('Room deleted');
-                  void roomAdmin.run('delete');
-                }}
-              />
-            )}
-
-            {/* Annotations panel toggle — top-level header button */}
-            <button
-              onClick={handleAnnotationPanelToggle}
-              className={`p-1.5 rounded-md text-xs font-medium transition-all ${
-                isPanelOpen
-                  ? 'bg-primary/15 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              }`}
-              title={isPanelOpen ? 'Hide annotations' : 'Show annotations'}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-              </svg>
-            </button>
-
-            {/* Settings dialog (controlled, button hidden — opened from PlanHeaderMenu) */}
-            <div className="hidden">
-              <Settings
-                taterMode={taterMode}
-                onTaterModeChange={handleTaterModeChange}
-                onIdentityChange={handleIdentityChange}
-                origin={origin}
-                onUIPreferencesChange={setUiPrefs}
-                externalOpen={mobileSettingsOpen}
-                onExternalClose={() => setMobileSettingsOpen(false)}
-                gitUser={gitUser}
-              />
-            </div>
-
-            <PlanHeaderMenu
-              appVersion={typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'}
-              onOpenSettings={() => {
-                setMobileSettingsOpen(true);
-              }}
-              onOpenExport={() => { setInitialExportTab(undefined); setShowExport(true); }}
-              onCopyAgentInstructions={handleCopyAgentInstructions}
-              onDownloadAnnotations={handleDownloadAnnotations}
-              onPrint={() => window.print()}
-              onCopyShareLink={handleCopyShareLink}
-              onOpenImport={() => setShowImport(true)}
-              onStartLiveRoom={canStartLiveRoom ? handleStartLiveRoom : undefined}
-              onSaveToObsidian={() => handleQuickSaveToNotes('obsidian')}
-              onSaveToBear={() => handleQuickSaveToNotes('bear')}
-              onSaveToOctarine={() => handleQuickSaveToNotes('octarine')}
-              sharingEnabled={canShareCurrentSession}
-              isApiMode={isApiMode}
-              agentInstructionsEnabled={isApiMode && !archive.archiveMode && !annotateMode}
-              obsidianConfigured={isObsidianConfigured()}
-              bearConfigured={getBearSettings().enabled}
-              octarineConfigured={isOctarineConfigured()}
+        <AppHeader
+          isApiMode={isApiMode}
+          annotateMode={annotateMode}
+          archiveMode={archive.archiveMode}
+          gate={gate}
+          isSharedSession={isSharedSession}
+          origin={origin}
+          isSubmitting={isSubmitting}
+          isExiting={isExiting}
+          isPanelOpen={isPanelOpen}
+          hasAnyAnnotations={hasAnyAnnotations}
+          linkedDocIsActive={linkedDocHook.isActive}
+          callbackShareUrlReady={callbackConfig ? Boolean(shareUrl || shortShareUrl) : true}
+          canShareCurrentSession={canShareCurrentSession}
+          agentName={agentName}
+          availableAgents={availableAgents}
+          showAnnotationsWarning={allAnnotations.length > 0 || codeAnnotations.length > 0}
+          callbackConfig={callbackConfig}
+          taterMode={taterMode}
+          mobileSettingsOpen={mobileSettingsOpen}
+          gitUser={gitUser}
+          submitError={submitError ?? undefined}
+          roomControls={roomModeActive && roomSession?.room ? (
+            <RoomHeaderControls
+              connectionStatus={roomSession.room.connectionStatus}
+              remotePresence={roomSession.room.remotePresence}
+              isAdmin={roomSession.room.hasAdminCapability}
+              adminUrl={roomSession.adminUrl}
+              pendingAdminAction={roomAdmin.pending}
+              onCopyParticipantUrl={handleCopyParticipantUrl}
+              onCopyAdminUrl={handleCopyAdminUrl}
+              onCopyConsolidatedFeedback={handleCopyConsolidatedFeedback}
+              onCopyAgentInstructions={handleCopyRoomAgentInstructions}
+              onDelete={handleHeaderRoomDelete}
             />
-          </div>
-        </header>
+          ) : undefined}
+          onCallbackFeedback={handleCallbackFeedback}
+          onCallbackApprove={handleCallbackApprove}
+          onAnnotateExit={handleHeaderAnnotateExit}
+          onAnnotateFeedback={handleHeaderAnnotateFeedback}
+          onAnnotateApprove={handleHeaderAnnotateApprove}
+          onFeedback={handleHeaderFeedback}
+          onApprove={handleHeaderApprove}
+          onAnnotationPanelToggle={handleAnnotationPanelToggle}
+          onArchiveCopy={archive.copy}
+          onArchiveDone={archive.done}
+          onTaterModeChange={handleTaterModeChange}
+          onIdentityChange={handleIdentityChange}
+          onUIPreferencesChange={setUiPrefs}
+          onOpenSettings={handleOpenSettings}
+          onCloseSettings={handleCloseSettings}
+          onOpenExport={handleOpenExport}
+          onCopyAgentInstructions={handleHeaderCopyAgentInstructions}
+          onDownloadAnnotations={handleHeaderDownloadAnnotations}
+          onPrint={handlePrint}
+          onCopyShareLink={handleHeaderCopyShareLink}
+          onOpenImport={handleOpenImport}
+          onSaveToObsidian={handleSaveToObsidian}
+          onSaveToBear={handleSaveToBear}
+          onSaveToOctarine={handleSaveToOctarine}
+          onStartLiveRoom={handleHeaderStartLiveRoom}
+          appVersion={typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'}
+          agentInstructionsEnabled={isApiMode && !archive.archiveMode && !annotateMode}
+          obsidianConfigured={isObsidianConfigured()}
+          bearConfigured={getBearSettings().enabled}
+          octarineConfigured={isOctarineConfigured()}
+        />
 
         {/*
           Room-mode stripped-images banner. Moved here from the old

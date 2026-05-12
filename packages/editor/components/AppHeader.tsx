@@ -63,12 +63,17 @@ interface AppHeaderProps {
   onSaveToBear: () => void;
   onSaveToOctarine: () => void;
 
+  // Room mode — opaque slot rendered between approve/deny and annotation toggle
+  roomControls?: React.ReactNode;
+  submitError?: string;
+
   // PlanHeaderMenu config
   appVersion: string;
   agentInstructionsEnabled: boolean;
   obsidianConfigured: boolean;
   bearConfigured: boolean;
   octarineConfigured: boolean;
+  onStartLiveRoom?: () => void;
 }
 
 export const AppHeader = React.memo<AppHeaderProps>(({
@@ -116,11 +121,14 @@ export const AppHeader = React.memo<AppHeaderProps>(({
   onSaveToObsidian,
   onSaveToBear,
   onSaveToOctarine,
+  roomControls,
+  submitError,
   appVersion,
   agentInstructionsEnabled,
   obsidianConfigured,
   bearConfigured,
   octarineConfigured,
+  onStartLiveRoom,
 }) => {
   return (
     <header data-app-header="true" className="h-12 flex items-center justify-between px-2 md:px-4 border-b border-border/50 bg-card/50 backdrop-blur-xl sticky top-0 z-[50]">
@@ -166,6 +174,12 @@ export const AppHeader = React.memo<AppHeaderProps>(({
               Done
             </button>
           </>
+        )}
+
+        {submitError && (
+          <div className="text-xs text-destructive max-w-[260px] truncate" title={submitError}>
+            {submitError}
+          </div>
         )}
 
         {isApiMode && (!linkedDocIsActive || annotateMode) && !archiveMode && (
@@ -229,6 +243,8 @@ export const AppHeader = React.memo<AppHeaderProps>(({
           </>
         )}
 
+        {roomControls}
+
         {/* Annotations panel toggle */}
         <button
           onClick={onAnnotationPanelToggle}
@@ -270,6 +286,7 @@ export const AppHeader = React.memo<AppHeaderProps>(({
           onSaveToObsidian={onSaveToObsidian}
           onSaveToBear={onSaveToBear}
           onSaveToOctarine={onSaveToOctarine}
+          onStartLiveRoom={onStartLiveRoom}
           sharingEnabled={canShareCurrentSession}
           isApiMode={isApiMode}
           agentInstructionsEnabled={agentInstructionsEnabled}
