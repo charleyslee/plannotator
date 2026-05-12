@@ -4,7 +4,9 @@ import { BlockRenderer } from '@plannotator/ui/components/BlockRenderer';
 
 interface LandingPreviewProps {
   markdown: string;
+  /** Unused — kept for future header/breadcrumb display. */
   fileName: string | null;
+  /** Unused — kept for future clear-from-preview affordance. */
   onClear: () => void;
 }
 
