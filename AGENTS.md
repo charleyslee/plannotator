@@ -31,13 +31,13 @@ plannotator/
 │   ├── room-service/             # Live collaboration rooms (Cloudflare Worker + Durable Object)
 │   │   ├── core/                 # Handler, DO class, validation, CORS, log, types, csp
 │   │   ├── targets/cloudflare.ts # Worker entry + DO re-export
-│   │   ├── entry.tsx             # Browser shell entry — mounts AppRoot for /c/:roomId
+│   │   ├── entry.tsx             # Browser shell entry — path switch: / → LandingPage, /c/:roomId → AppRoot
 │   │   ├── index.html            # Vite template; produces hashed chunks under /assets/
 │   │   ├── vite.config.ts        # Browser shell build (bun run build:shell)
 │   │   ├── tsconfig.browser.json # DOM-lib tsconfig for the shell
 │   │   ├── static/               # Root-level static assets copied into public/ by build:shell (favicon.svg)
 │   │   ├── scripts/smoke.ts      # Integration test against wrangler dev
-│   │   └── wrangler.toml         # SQLite-backed DO binding + ASSETS binding for built shell
+│   │   └── wrangler.toml         # SQLite-backed DO binding + ASSETS binding (run_worker_first, html_handling=none)
 │   └── vscode-extension/         # VS Code extension — opens plans in editor tabs
 │       ├── bin/                   # Router scripts (open-in-vscode, xdg-open)
 │       ├── src/                   # extension.ts, cookie-proxy.ts, ipc-server.ts, panel-manager.ts, editor-annotations.ts, vscode-theme.ts
@@ -322,6 +322,7 @@ Live-collaboration rooms for encrypted multi-user annotation. Zero-knowledge: th
 
 | Endpoint              | Method | Purpose                                    |
 | --------------------- | ------ | ------------------------------------------ |
+| `/`                   | GET    | Landing page for room creation from uploaded document. Serves the same `index.html` shell; `entry.tsx` path switch renders `LandingPage` (lazy-loaded). |
 | `/health`             | GET    | Worker liveness probe                      |
 | `/c/:roomId`          | GET    | Room SPA shell — serves the built editor bundle (hashed chunks under `/assets/`). Response carries `ROOM_CSP`, `Cache-Control: no-store` on the HTML, `Referrer-Policy: no-referrer`. `:roomId` is validated against `isRoomId()` before the asset fetch. |
 | `/api/rooms`          | POST   | Create room. Body: `{ roomId, roomVerifier, adminVerifier, initialSnapshotCiphertext, expiresInDays? }`. Returns `201` on success; `409` on duplicate `roomId`. Response body is intentionally not consumed by `createRoom()`. |

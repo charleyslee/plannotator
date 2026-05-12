@@ -96,19 +96,29 @@ export async function urlToMarkdown(
     }
   }
 
+  let jinaError: Error | undefined;
   if (options.useJina && !local) {
     try {
       const markdown = await fetchViaJina(url);
       return { markdown, source: "jina" };
     } catch (err) {
-      process.stderr.write(
-        `[plannotator] Warning: Jina Reader failed (${err instanceof Error ? err.message : String(err)}), falling back to direct fetch...\n`,
+      jinaError = err instanceof Error ? err : new Error(String(err));
+      console.warn(
+        `[plannotator] Jina Reader failed (${jinaError.message}), falling back to direct fetch`,
       );
     }
   }
 
-  const markdown = await fetchViaTurndown(url);
-  return { markdown, source: "fetch+turndown" };
+  try {
+    const markdown = await fetchViaTurndown(url);
+    return { markdown, source: "fetch+turndown" };
+  } catch (err) {
+    const turndownMsg = err instanceof Error ? err.message : String(err);
+    if (jinaError) {
+      throw new Error(`Jina Reader failed: ${jinaError.message}`);
+    }
+    throw new Error(turndownMsg);
+  }
 }
 
 /** Read response body with a size limit. Throws if the body exceeds MAX_BODY_BYTES. */
@@ -144,7 +154,13 @@ async function readBodyWithLimit(res: Response): Promise<string> {
     }
     chunks.push(value);
   }
-  return new TextDecoder().decode(Buffer.concat(chunks));
+  const merged = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(merged);
 }
 
 /**
@@ -260,7 +276,7 @@ async function fetchViaJina(url: string): Promise<string> {
     Accept: "text/plain",
   };
 
-  const apiKey = process.env.JINA_API_KEY;
+  const apiKey = typeof process !== 'undefined' ? process.env?.JINA_API_KEY : undefined;
   if (apiKey) {
     headers.Authorization = `Bearer ${apiKey}`;
   }

@@ -8,6 +8,7 @@
 import type { Env } from './types';
 import { isRoomId, validateCreateRoomRequest, isValidationError } from './validation';
 import { safeLog } from './log';
+import { urlToMarkdown } from '@plannotator/shared/url-to-markdown';
 
 const ROOM_PATH_RE = /^\/c\/([^/]+)$/;
 const WS_PATH_RE = /^\/ws\/([^/]+)$/;
@@ -36,6 +37,11 @@ export async function handleRequest(
     return handleCreateRoom(request, env, cors);
   }
 
+  // URL → markdown conversion (landing page proxy)
+  if (pathname === '/api/fetch-markdown' && method === 'POST') {
+    return handleFetchMarkdown(request, cors);
+  }
+
   // WebSocket upgrade — matched before asset/SPA routes so a stray ws/*
   // under the asset binding can't be mistaken for a file fetch.
   const wsMatch = pathname.match(WS_PATH_RE);
@@ -48,11 +54,11 @@ export async function handleRequest(
   // Cache-Control: chunks invalidate by name, never by TTL. Headers from
   // the asset response (Content-Type, ETag, Content-Encoding) are
   // preserved; we only override CORS + Cache-Control.
-  // Static root-level assets (favicon.svg). Vite copies these from
-  // the publicDir into the build output root alongside index.html.
-  // Served with a 1-day cache — they're not hashed so immutable isn't
-  // safe, but they change very rarely.
-  if (pathname === '/favicon.svg' && method === 'GET') {
+  // Static root-level assets (favicon.svg, banner_lite.webp, sprite.png, etc.).
+  // Vite copies these from the publicDir into the build output root.
+  // Served with a 1-day cache — not hashed so immutable isn't safe.
+  const isRootStaticAsset = method === 'GET' && /^\/(favicon\.svg|[^/]+\.(webp|png|ico|svg|md))$/.test(pathname);
+  if (isRootStaticAsset) {
     if (!env.ASSETS) {
       return new Response('Not Found', { status: 404, headers: cors });
     }
@@ -114,15 +120,14 @@ export async function handleRequest(
     return serveIndexHtml(request, env, cors);
   }
 
-  // No broad SPA fallback. This is a room-only origin — the only valid
-  // browser route is /c/:roomId (matched above). Serving index.html for
-  // `/`, `/about`, or other non-room paths would boot the local editor
-  // via AppRoot's local-mode branch, contradicting the room-only
-  // boundary. If future routes are added (e.g. /rooms index, admin
-  // recovery page), add explicit path matches here; don't open a
-  // catch-all that silently renders local mode.
+  // Landing page — room creation from uploaded document. The entry-level
+  // path switch in entry.tsx renders <LandingPage> for pathname '/'.
+  if (pathname === '/' && method === 'GET') {
+    return serveIndexHtml(request, env, cors);
+  }
+
   return Response.json(
-    { error: 'Not found. Valid paths: GET /health, GET /c/:id, POST /api/rooms, GET /ws/:id, GET /assets/*' },
+    { error: 'Not found. Valid paths: GET /, GET /health, GET /c/:id, POST /api/rooms, POST /api/fetch-markdown, GET /ws/:id, GET /assets/*' },
     { status: 404, headers: cors },
   );
 }
@@ -333,4 +338,38 @@ async function handleWebSocket(
   const id = env.ROOM.idFromName(roomId);
   const stub = env.ROOM.get(id);
   return stub.fetch(request);
+}
+
+// ---------------------------------------------------------------------------
+// URL → Markdown
+// ---------------------------------------------------------------------------
+
+async function handleFetchMarkdown(
+  request: Request,
+  cors: Record<string, string>,
+): Promise<Response> {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400, headers: cors });
+  }
+
+  if (body === null || typeof body !== 'object' || typeof (body as Record<string, unknown>).url !== 'string') {
+    return Response.json({ error: 'Missing required field: url' }, { status: 400, headers: cors });
+  }
+
+  const url = (body as Record<string, unknown>).url as string;
+
+  if (!/^https:\/\//i.test(url)) {
+    return Response.json({ error: 'Only https:// URLs are supported' }, { status: 400, headers: cors });
+  }
+
+  try {
+    const result = await urlToMarkdown(url, { useJina: true });
+    return Response.json({ markdown: result.markdown, source: result.source }, { headers: cors });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Fetch failed';
+    return Response.json({ error: message }, { status: 502, headers: cors });
+  }
 }

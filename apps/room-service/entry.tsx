@@ -1,29 +1,57 @@
 /**
- * Browser entry for the live-room Plannotator editor served at
- * room.plannotator.ai/c/:roomId.
+ * Browser entry for room.plannotator.ai.
  *
- * AppRoot parses the URL via useRoomMode() and picks between <App />
- * (local mode — never reached on this origin by design) and
- * <RoomApp><App roomSession={...} /></RoomApp>. The same bundle would
- * fall back to local mode on any non-room URL, but Cloudflare's Worker
- * only routes /c/:roomId to this HTML, so room mode is the expected
- * entry point.
+ * Two surfaces share this bundle:
+ *   - `/`           → LandingPage (upload a document, create a room)
+ *   - `/c/:roomId`  → AppRoot (room editor via useRoomMode)
  *
- * Unlike apps/hook (the local CLI-served binary, built with
- * vite-plugin-singlefile so it can be embedded into a one-shot HTTP
- * server), this build emits chunked assets. The Worker's `[assets]`
- * binding + Cloudflare edge serves them with HTTP/2 multiplexing and
- * per-chunk Brotli, so cold-start transfer is smaller than a singlefile
- * blob and warm visits rehit cached hashed chunks.
+ * Both branches are lazy-loaded so neither pays for the other's code.
+ * Landing visitors (~10 KB) never download the editor bundle (~4 MB),
+ * and room visitors never download the landing page chunk.
+ *
+ * TanStack Router is intentionally deferred until room-service has 3-4+
+ * real routes with data/loading needs.
  */
 
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
-import AppRoot from '@plannotator/editor';
+import { ThemeProvider } from '@plannotator/ui/components/ThemeProvider';
 // @ts-expect-error — Vite resolves CSS side-effect imports at build time;
 // there is no .d.ts for the index.css file and adding one would not match
 // the existing apps/hook pattern. TypeScript doesn't need to analyze it.
 import '@plannotator/editor/styles';
+
+const LandingPage = lazy(() =>
+  import('@plannotator/ui/components/collab/LandingPage').then(m => ({ default: m.LandingPage })),
+);
+
+const AppRoot = lazy(() =>
+  import('@plannotator/editor').then(m => ({ default: m.default })),
+);
+
+function RoomServiceEntry(): React.ReactElement {
+  const pathname = window.location.pathname;
+
+  if (pathname === '/') {
+    return (
+      <ThemeProvider defaultTheme="dark">
+        <Suspense fallback={
+          <div className="min-h-screen bg-background flex items-center justify-center">
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
+        }>
+          <LandingPage />
+        </Suspense>
+      </ThemeProvider>
+    );
+  }
+
+  return (
+    <Suspense fallback={null}>
+      <AppRoot />
+    </Suspense>
+  );
+}
 
 const root = document.getElementById('root');
 if (!root) {
@@ -31,6 +59,6 @@ if (!root) {
 }
 createRoot(root).render(
   <React.StrictMode>
-    <AppRoot />
+    <RoomServiceEntry />
   </React.StrictMode>,
 );
