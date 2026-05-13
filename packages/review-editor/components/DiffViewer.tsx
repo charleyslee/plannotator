@@ -7,6 +7,7 @@ import { usePierreTheme } from '../hooks/usePierreTheme';
 import { CommentPopover } from '@plannotator/ui/components/CommentPopover';
 import { storage } from '@plannotator/ui/utils/storage';
 import { detectLanguage } from '../utils/detectLanguage';
+import { buildCodeNavRequest } from '../utils/buildCodeNavRequest';
 import { ToolbarHost, type ToolbarHostHandle } from './ToolbarHost';
 import { OverlayScrollArea } from '@plannotator/ui/components/OverlayScrollArea';
 import { useOverlayViewport } from '@plannotator/ui/hooks/useOverlayViewport';
@@ -161,6 +162,8 @@ interface DiffViewerProps {
   onClickAIMarker?: (questionId: string) => void;
   /** AI messages overlapping the current pending selection */
   aiHistoryMessages?: AIChatEntry[];
+  // Code navigation
+  onCodeNavRequest?: (request: import('@plannotator/shared/code-nav').CodeNavRequest) => void;
 }
 
 export const DiffViewer: React.FC<DiffViewerProps> = ({
@@ -206,6 +209,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   aiMessages = [],
   onClickAIMarker,
   aiHistoryMessages = [],
+  onCodeNavRequest,
 }) => {
   const pierreTheme = usePierreTheme({ fontFamily, fontSize });
   // containerRef must point at the actual scrolling element (the
@@ -533,15 +537,23 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 
   // Token interaction handlers (code area clicks)
   const handleTokenClick = useCallback((props: DiffTokenEventBaseProps, event: MouseEvent) => {
+    if ((event.metaKey || event.ctrlKey) && onCodeNavRequest) {
+      onCodeNavRequest(buildCodeNavRequest(props, filePath));
+      return;
+    }
     toolbarHostRef.current?.handleTokenClick(props, event);
-  }, []);
+  }, [filePath, onCodeNavRequest]);
 
-  const handleTokenEnter = useCallback((props: DiffTokenEventBaseProps) => {
+  const handleTokenEnter = useCallback((props: DiffTokenEventBaseProps, event: PointerEvent) => {
     props.tokenElement.classList.add('pn-token-hover');
-  }, []);
+    if ((event.metaKey || event.ctrlKey) && onCodeNavRequest) {
+      props.tokenElement.classList.add('pn-token-nav');
+    }
+  }, [onCodeNavRequest]);
 
   const handleTokenLeave = useCallback((props: DiffTokenEventBaseProps) => {
     props.tokenElement.classList.remove('pn-token-hover');
+    props.tokenElement.classList.remove('pn-token-nav');
   }, []);
 
   const splitGridStyle = useMemo(() => {

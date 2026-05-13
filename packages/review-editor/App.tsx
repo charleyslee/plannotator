@@ -28,6 +28,8 @@ import { useCodeAnnotationDraft } from '@plannotator/ui/hooks/useCodeAnnotationD
 import { useGitAdd } from './hooks/useGitAdd';
 import { generateId } from './utils/generateId';
 import { useAIChat } from './hooks/useAIChat';
+import { toast, Toaster } from 'sonner';
+import { useCodeNav, type CodeNavRequest } from './hooks/useCodeNav';
 import { extractLinesFromPatch } from './utils/patchParser';
 import { isTypingTarget, useReviewSearch, type ReviewSearchMatch } from './hooks/useReviewSearch';
 import { useEditorAnnotations } from '@plannotator/ui/hooks/useEditorAnnotations';
@@ -67,6 +69,7 @@ import {
   REVIEW_PR_COMMENTS_PANEL_ID,
   REVIEW_PR_CHECKS_PANEL_ID,
   REVIEW_ALL_FILES_PANEL_ID,
+  REVIEW_CODE_NAV_PANEL_ID,
 } from './dock/reviewPanelTypes';
 import type { DiffFile } from './types';
 import type { DiffOption, WorktreeInfo, GitContext } from '@plannotator/shared/types';
@@ -421,6 +424,36 @@ const ReviewApp: React.FC = () => {
     model: aiConfig.model,
     reasoningEffort: aiConfig.reasoningEffort,
   });
+
+  const codeNav = useCodeNav();
+
+  const handleCodeNavRequest = useCallback((request: CodeNavRequest) => {
+    if (!gitContext && !agentCwd) {
+      toast('Code navigation requires a local checkout', {
+        description: 'Re-run with --local for PR reviews',
+        duration: 4000,
+      });
+      return;
+    }
+    codeNav.resolve(request);
+    if (!dockApi) return;
+    const existing = dockApi.getPanel(REVIEW_CODE_NAV_PANEL_ID);
+    if (existing) {
+      existing.api.setTitle(`References: ${request.symbol}`);
+      existing.api.setActive();
+    } else {
+      const refPanel = isAllFilesActive
+        ? REVIEW_ALL_FILES_PANEL_ID
+        : REVIEW_DIFF_PANEL_ID;
+      dockApi.addPanel({
+        id: REVIEW_CODE_NAV_PANEL_ID,
+        component: REVIEW_PANEL_TYPES.CODE_NAV,
+        title: `References: ${request.symbol}`,
+        position: { direction: 'below', referencePanel: refPanel },
+        initialHeight: 250,
+      });
+    }
+  }, [codeNav.resolve, dockApi, isAllFilesActive, gitContext, agentCwd]);
 
   // Check AI capabilities on mount
   useEffect(() => {
@@ -1374,6 +1407,10 @@ const ReviewApp: React.FC = () => {
     onAllFilesVisibleFileChange: setAllFilesVisibleFile,
     isAllFilesActive,
     openTourPanel: handleOpenTour,
+    onCodeNavRequest: handleCodeNavRequest,
+    codeNavResult: codeNav.result,
+    codeNavIsLoading: codeNav.isLoading,
+    codeNavActiveSymbol: codeNav.activeSymbol,
   }), [
     files, activeFileIndex, diffStyle, diffOverflow, diffIndicators,
     diffLineDiffType, diffShowLineNumbers, diffShowBackground,
@@ -1390,6 +1427,7 @@ const ReviewApp: React.FC = () => {
     aiHistoryForSelection, agentJobs.jobs, prMetadata, prContext,
     isPRContextLoading, prContextError, fetchPRContext, platformUser, openDiffFile,
     handleOpenTour, isAllFilesActive, handleAddAnnotationForFile,
+    handleCodeNavRequest, codeNav.result, codeNav.isLoading, codeNav.activeSymbol,
   ]);
 
   // Separate context for high-frequency job logs — prevents re-rendering all panels on every SSE event
@@ -2445,6 +2483,16 @@ const ReviewApp: React.FC = () => {
         </button>
       )}
 
+    <Toaster
+      position="bottom-center"
+      toastOptions={{
+        style: {
+          '--normal-bg': 'var(--card)',
+          '--normal-border': 'var(--border)',
+          '--normal-text': 'var(--foreground)',
+        } as React.CSSProperties,
+      }}
+    />
     </JobLogsProvider>
     </ReviewStateProvider>
     </TooltipProvider>
