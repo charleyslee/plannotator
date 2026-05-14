@@ -59,7 +59,13 @@ Write `goals/<slug>/plan.md`:
 - Verification for each step (concrete commands or checks)
 - Risks or open questions worth flagging
 
-This is a working document for the executing agent, not review theater.
+Gate the plan with Plannotator:
+
+```bash
+plannotator annotate goals/<slug>/plan.md --gate
+```
+
+If denied, revise from feedback and re-gate until approved.
 
 ### 5. Goal Output
 
