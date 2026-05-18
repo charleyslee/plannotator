@@ -15,7 +15,8 @@ export const PLANNOTATOR_PLUGIN_FEATURES = [
 
 export type PluginFeature = (typeof PLANNOTATOR_PLUGIN_FEATURES)[number];
 export type PluginClientOrigin = Extract<Origin, "opencode" | "pi">;
-export type PluginSessionMode = "plan" | "review" | "annotate" | "archive";
+export type PluginRequestOrigin = Origin;
+export type PluginSessionMode = "plan" | "review" | "annotate" | "archive" | "goal-setup";
 
 export interface PluginCapabilities {
   protocol: typeof PLANNOTATOR_PLUGIN_PROTOCOL;
@@ -27,11 +28,12 @@ export interface PluginCapabilities {
 }
 
 export interface PluginBaseRequest {
-  origin: PluginClientOrigin;
+  origin: PluginRequestOrigin;
   cwd?: string;
   sharingEnabled?: boolean;
   shareBaseUrl?: string;
   pasteApiUrl?: string;
+  timeoutMs?: number | null;
 }
 
 export interface PluginAgentInfo {
@@ -60,6 +62,9 @@ export interface PluginReviewRequest extends PluginBaseRequest {
 
 export interface PluginAnnotateRequest extends PluginBaseRequest {
   args?: string;
+  noJina?: boolean;
+  useJina?: boolean;
+  jinaApiKey?: string;
   markdown?: string;
   filePath?: string;
   mode?: "annotate" | "annotate-folder" | "annotate-last";
@@ -75,12 +80,19 @@ export interface PluginArchiveRequest extends PluginBaseRequest {
   customPlanPath?: string | null;
 }
 
+export interface PluginGoalSetupRequest extends PluginBaseRequest {
+  bundle: unknown;
+  stage: "interview" | "facts";
+  goalSlug?: string;
+}
+
 export type PluginRequest =
   | ({ action: "plan" } & PluginPlanRequest)
   | ({ action: "review" } & PluginReviewRequest)
   | ({ action: "annotate" } & PluginAnnotateRequest)
   | ({ action: "annotate-last" } & PluginAnnotateRequest)
-  | ({ action: "archive" } & PluginArchiveRequest);
+  | ({ action: "archive" } & PluginArchiveRequest)
+  | ({ action: "goal-setup" } & PluginGoalSetupRequest);
 
 export interface PluginSessionInfo {
   mode: PluginSessionMode;
@@ -153,7 +165,7 @@ export function getPluginCapabilities(): PluginCapabilities {
     minClientVersion: PLANNOTATOR_PLUGIN_MIN_CLIENT_VERSION,
     features: [...PLANNOTATOR_PLUGIN_FEATURES],
     daemonReady: true,
-    multiSessionDaemon: false,
+    multiSessionDaemon: true,
   };
 }
 
