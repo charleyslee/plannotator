@@ -11,7 +11,6 @@ export const PLANNOTATOR_PLUGIN_FEATURES = [
   "annotate",
   "annotate-last",
   "archive",
-  "goal-setup",
 ] as const;
 
 export type PluginFeature = (typeof PLANNOTATOR_PLUGIN_FEATURES)[number];

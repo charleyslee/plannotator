@@ -153,7 +153,7 @@ async function loadGoalSetupBundle(stage: GoalSetupStage, bundlePath: string) {
   const raw =
     bundlePath === "-"
       ? await Bun.stdin.text()
-      : await Bun.file(path.resolve(bundlePath)).text();
+      : await Bun.file(path.resolve(getInvocationCwd(), bundlePath)).text();
   return normalizeGoalSetupBundle(JSON.parse(raw), stage);
 }
 
