@@ -11,6 +11,12 @@ import type {
   ShellSessionSummary,
 } from "../contracts";
 import { encodeSessionId } from "../../sessions/session-id";
+import {
+  DaemonHubActionError,
+  DaemonHubOpenError,
+  getDaemonHubClient,
+  type WebSocketFactory,
+} from "../events/hub-client";
 import type { DaemonApiError, DaemonApiResult } from "./errors";
 
 type FetchLike = typeof fetch;
@@ -18,6 +24,7 @@ type FetchLike = typeof fetch;
 export interface DaemonApiClientOptions {
   baseUrl?: string;
   fetch?: FetchLike;
+  webSocketFactory?: WebSocketFactory;
 }
 
 export interface DaemonApiClient {
@@ -27,7 +34,7 @@ export interface DaemonApiClient {
   getSessionBootstrap(sessionId: string): Promise<DaemonApiResult<ShellSessionBootstrap>>;
   cancelSession(sessionId: string, reason?: string): Promise<DaemonApiResult<ShellSessionResponse>>;
   deleteSession(sessionId: string): Promise<DaemonApiResult<ShellDeleteSessionResponse>>;
-  getEventsUrl(): string;
+  getWebSocketUrl(): string;
   getSessionApiUrl(sessionId: string, path: string): string;
   probeSessionApi(
     sessionId: string,
@@ -51,14 +58,21 @@ export type ShellSessionAction =
   | "annotate-approve"
   | "annotate-feedback"
   | "annotate-exit"
-  | "archive-done"
-  | "goal-setup-submit"
-  | "goal-setup-exit";
+  | "archive-done";
 
 function joinUrl(baseUrl: string | undefined, path: string): string {
   if (!baseUrl) return path;
   const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
   return new URL(path, normalizedBase).toString();
+}
+
+function websocketUrl(baseUrl: string | undefined, path: string): string {
+  const joined = joinUrl(baseUrl, path);
+  const url = joined.startsWith("/")
+    ? new URL(joined, typeof window === "undefined" ? "http://localhost" : window.location.href)
+    : new URL(joined);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
 }
 
 function normalizeSessionApiPath(path: string): string {
@@ -141,8 +155,24 @@ function isSessionBootstrap(value: unknown): value is ShellSessionBootstrap {
   );
 }
 
-function httpError(status: number, message: string): DaemonApiError {
-  return { kind: "http-error", status, message };
+function httpError(status: number, message: string, payload?: unknown): DaemonApiError {
+  return {
+    kind: "http-error",
+    status,
+    message,
+    ...(payload !== undefined && { payload }),
+  };
+}
+
+function errorMessageFromPayload(payload: unknown, fallback: string): string {
+  if (isRecord(payload)) {
+    if (typeof payload.message === "string") return payload.message;
+    if (typeof payload.error === "string") return payload.error;
+    if (isRecord(payload.error) && typeof payload.error.message === "string") {
+      return payload.error.message;
+    }
+  }
+  return fallback;
 }
 
 async function requestJson<T>(
@@ -261,10 +291,6 @@ function requestForAction(action: ShellSessionAction): { path: string; init: Req
       return { path: "/api/exit", init: jsonPost({}) };
     case "archive-done":
       return { path: "/api/done", init: jsonPost({}) };
-    case "goal-setup-submit":
-      return { path: "/api/goal-setup/submit", init: jsonPost({ answers: [], facts: [] }) };
-    case "goal-setup-exit":
-      return { path: "/api/exit", init: jsonPost({}) };
   }
 }
 
@@ -326,8 +352,8 @@ export function createDaemonApiClient(options: DaemonApiClientOptions = {}): Dae
       );
     },
 
-    getEventsUrl() {
-      return joinUrl(options.baseUrl, "/daemon/events");
+    getWebSocketUrl() {
+      return websocketUrl(options.baseUrl, "/daemon/ws");
     },
 
     getSessionApiUrl(sessionId, path) {
@@ -338,9 +364,46 @@ export function createDaemonApiClient(options: DaemonApiClientOptions = {}): Dae
       return probeSessionApi(sessionId, path, init);
     },
 
-    runSessionAction(session, action) {
+    async runSessionAction(session, action) {
       const request = requestForAction(action);
-      return probeSessionApi(session.id, request.path, request.init);
+      const body = request.init.body ? JSON.parse(String(request.init.body)) : undefined;
+      try {
+        const result = await getDaemonHubClient(
+          websocketUrl(options.baseUrl, "/daemon/ws"),
+          options.webSocketFactory,
+        ).runAction({
+          sessionId: session.id,
+          method: request.init.method ?? "GET",
+          path: request.path,
+          body,
+        });
+        if (result.status < 200 || result.status >= 300) {
+          return {
+            ok: false,
+            error: httpError(
+              result.status,
+              errorMessageFromPayload(result.payload, "Daemon WebSocket action failed."),
+              result.payload,
+            ),
+          };
+        }
+        return { ok: true, data: result.payload };
+      } catch (cause) {
+        if (
+          cause instanceof DaemonHubOpenError ||
+          (cause instanceof DaemonHubActionError && cause.code === "unauthorized")
+        ) {
+          return probeSessionApi(session.id, request.path, request.init);
+        }
+        return {
+          ok: false,
+          error: {
+            kind: "network-error",
+            message: cause instanceof Error ? cause.message : "Daemon WebSocket action failed.",
+            cause,
+          },
+        };
+      }
     },
   };
 }

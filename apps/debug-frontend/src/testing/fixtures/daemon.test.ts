@@ -25,7 +25,11 @@ describe("daemon fixtures", () => {
         }
         expect(group.endpoints.length, `${group.id} has endpoints`).toBeGreaterThan(0);
         for (const endpoint of group.endpoints) {
-          expect(endpoint.path.startsWith("/api/") || endpoint.path === "/favicon.svg").toBe(true);
+          expect(
+            endpoint.path.startsWith("/api/") ||
+              endpoint.path.startsWith("/daemon/ws") ||
+              endpoint.path === "/favicon.svg",
+          ).toBe(true);
         }
       }
     }

@@ -1,27 +1,24 @@
 import type { DaemonApiClient } from "../api/client";
 import type { DaemonApiResult } from "../api/errors";
-import type { ShellDaemonEvent, ShellDaemonStatus, ShellSessionListResponse } from "../contracts";
-
-export interface EventSourceLike {
-  onopen: ((event: Event) => void) | null;
-  onerror: ((event: Event) => void) | null;
-  addEventListener(type: string, listener: (event: MessageEvent<string>) => void): void;
-  close(): void;
-}
-
-type IntervalHandle = ReturnType<typeof setInterval> & { unref?: () => void };
-type SetIntervalLike = (callback: () => void, intervalMs: number) => IntervalHandle;
-type ClearIntervalLike = (handle: IntervalHandle) => void;
+import type {
+  ShellDaemonEvent,
+  ShellDaemonStatus,
+  ShellDaemonWebSocketServerMessage,
+  ShellSessionListResponse,
+} from "../contracts";
+import {
+  getDaemonHubClient,
+  type DaemonHubConnectionState,
+  type WebSocketFactory,
+} from "./hub-client";
 
 export interface DaemonEventStreamOptions {
-  client: Pick<DaemonApiClient, "getEventsUrl" | "getStatus" | "listSessions">;
+  client: Pick<DaemonApiClient, "getWebSocketUrl" | "getStatus" | "listSessions">;
   onEvent(event: ShellDaemonEvent): void;
-  onState(state: "connecting" | "open" | "polling" | "error"): void;
+  onState(state: DaemonHubConnectionState | "polling"): void;
   onError(message: string): void;
-  eventSourceFactory?: (url: string) => EventSourceLike;
-  pollIntervalMs?: number;
-  setIntervalFn?: SetIntervalLike;
-  clearIntervalFn?: ClearIntervalLike;
+  webSocketFactory?: WebSocketFactory;
+  fallbackPollMs?: number;
 }
 
 export interface DaemonEventStreamController {
@@ -37,44 +34,43 @@ const DAEMON_EVENT_TYPES = [
   "daemon-error",
   "debug-log",
 ] as const;
+const DEFAULT_FALLBACK_POLL_MS = 2_000;
 
-export function parseDaemonEventPayload(payload: string): ShellDaemonEvent | null {
-  try {
-    const value = JSON.parse(payload) as Partial<ShellDaemonEvent> | null;
-    if (!value || typeof value !== "object" || typeof value.type !== "string") return null;
-    if (!DAEMON_EVENT_TYPES.includes(value.type as (typeof DAEMON_EVENT_TYPES)[number]))
-      return null;
-    if (typeof value.at !== "string") return null;
-    return value as ShellDaemonEvent;
-  } catch {
-    return null;
-  }
+export function parseDaemonEventPayload(payload: unknown): ShellDaemonEvent | null {
+  const value = payload as Partial<ShellDaemonEvent> | null;
+  if (!value || typeof value !== "object" || typeof value.type !== "string") return null;
+  if (!DAEMON_EVENT_TYPES.includes(value.type as (typeof DAEMON_EVENT_TYPES)[number])) return null;
+  if (typeof value.at !== "string") return null;
+  return value as ShellDaemonEvent;
 }
 
 export function connectDaemonEvents(
   options: DaemonEventStreamOptions,
 ): DaemonEventStreamController {
-  const pollIntervalMs = options.pollIntervalMs ?? 2_000;
-  const setIntervalFn: SetIntervalLike =
-    options.setIntervalFn ??
-    ((callback, intervalMs) => setInterval(callback, intervalMs) as IntervalHandle);
-  const clearIntervalFn: ClearIntervalLike =
-    options.clearIntervalFn ?? ((handle) => clearInterval(handle));
   let stopped = false;
-  let pollingTimer: IntervalHandle | undefined;
-  let eventSource: EventSourceLike | undefined;
+  let pollingTimer: ReturnType<typeof setInterval> | undefined;
+  let pollingInFlight = false;
+  const client = getDaemonHubClient(options.client.getWebSocketUrl(), options.webSocketFactory);
+  const fallbackPollMs = options.fallbackPollMs ?? DEFAULT_FALLBACK_POLL_MS;
 
-  const stopPolling = () => {
-    if (!pollingTimer) return;
-    clearIntervalFn(pollingTimer);
-    pollingTimer = undefined;
-  };
-
-  const poll = async () => {
-    const [statusResult, sessionsResult] = await Promise.all([
-      options.client.getStatus(),
-      options.client.listSessions({ clean: true }),
-    ]);
+  const emitSnapshot = async () => {
+    if (stopped || pollingInFlight) return;
+    pollingInFlight = true;
+    let statusResult: DaemonApiResult<ShellDaemonStatus>;
+    let sessionsResult: DaemonApiResult<ShellSessionListResponse>;
+    try {
+      [statusResult, sessionsResult] = await Promise.all([
+        options.client.getStatus(),
+        options.client.listSessions({ clean: true }),
+      ]);
+    } catch (err) {
+      if (!stopped) {
+        options.onError(err instanceof Error ? err.message : "Daemon polling failed.");
+      }
+      return;
+    } finally {
+      pollingInFlight = false;
+    }
     if (stopped) return;
     emitPollingResult(statusResult, sessionsResult, {
       onEvent: options.onEvent,
@@ -83,54 +79,63 @@ export function connectDaemonEvents(
     });
   };
 
-  const startPolling = () => {
-    if (stopped || pollingTimer) return;
-    options.onState("polling");
-    void poll();
-    pollingTimer = setIntervalFn(() => void poll(), pollIntervalMs);
-    pollingTimer.unref?.();
-  };
-
-  const factory = options.eventSourceFactory ?? defaultEventSourceFactory();
-  if (!factory) {
-    startPolling();
-    return { stop };
-  }
-
-  options.onState("connecting");
-  eventSource = factory(options.client.getEventsUrl());
-  eventSource.onopen = () => {
-    if (!stopped) options.onState("open");
-  };
-  eventSource.onerror = () => {
-    if (stopped) return;
-    options.onError("Daemon event stream disconnected; falling back to polling.");
-    options.onState("error");
-    eventSource?.close();
-    eventSource = undefined;
-    startPolling();
-  };
-
-  for (const eventType of DAEMON_EVENT_TYPES) {
-    eventSource.addEventListener(eventType, (event) => {
-      const parsed = parseDaemonEventPayload(event.data);
-      if (parsed && !stopped) options.onEvent(parsed);
-    });
-  }
+  const unsubscribe = client.subscribeDaemon(
+    (message) => {
+      if (stopped) return;
+      const event = messageToDaemonEvent(message);
+      if (event) options.onEvent(event);
+    },
+    (state) => {
+      if (stopped) return;
+      options.onState(state);
+      if (state === "open") stopPolling();
+      if (state === "error" || state === "closed") startPolling();
+    },
+    (message) => {
+      if (!stopped) options.onError(message);
+    },
+  );
 
   return { stop };
 
   function stop() {
     stopped = true;
     stopPolling();
-    eventSource?.close();
-    eventSource = undefined;
+    unsubscribe();
+  }
+
+  function startPolling(): void {
+    if (stopped || pollingTimer) return;
+    void emitSnapshot();
+    pollingTimer = setInterval(() => {
+      void emitSnapshot();
+    }, fallbackPollMs);
+    pollingTimer.unref?.();
+  }
+
+  function stopPolling(): void {
+    if (!pollingTimer) return;
+    clearInterval(pollingTimer);
+    pollingTimer = undefined;
   }
 }
 
-function defaultEventSourceFactory(): ((url: string) => EventSourceLike) | undefined {
-  if (typeof EventSource === "undefined") return undefined;
-  return (url) => new EventSource(url);
+function messageToDaemonEvent(message: ShellDaemonWebSocketServerMessage): ShellDaemonEvent | null {
+  if (message.type === "snapshot" && message.scope.family === "daemon") {
+    const payload = message.payload as {
+      status?: ShellDaemonStatus;
+      sessions?: ShellSessionListResponse["sessions"];
+    };
+    if (!payload.status || !Array.isArray(payload.sessions)) return null;
+    return {
+      type: "snapshot",
+      at: message.at,
+      status: payload.status,
+      sessions: payload.sessions,
+    };
+  }
+  if (message.type !== "event" || message.scope.family !== "daemon") return null;
+  return parseDaemonEventPayload(message.payload);
 }
 
 function emitPollingResult(

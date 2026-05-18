@@ -37,8 +37,8 @@ const SESSION_ACTIONS: Partial<Record<ShellSessionSummary["mode"], SessionAction
   ],
   archive: [{ action: "archive-done", label: "Close", role: "secondary" }],
   "setup-goal": [
-    { action: "goal-setup-submit", label: "Submit", role: "approve" },
-    { action: "goal-setup-exit", label: "Exit", role: "deny" },
+    { action: "plan-approve", label: "Approve", role: "approve" },
+    { action: "plan-deny", label: "Deny", role: "deny" },
   ],
 };
 
@@ -64,10 +64,15 @@ export function SessionDebugPanel({ bootstrap, client = daemonApiClient }: Sessi
   const runAction = async (action: ShellSessionAction, label: string) => {
     setBusyLabel(label);
     try {
-      await client.runSessionAction(bootstrap.session, action);
+      const result = await client.runSessionAction(bootstrap.session, action);
+      if (!result.ok) {
+        setLastResult({ label, payload: result });
+        return;
+      }
       void navigate({ to: "/" });
     } catch (err) {
       setLastResult({ label, payload: formatError(err) });
+    } finally {
       setBusyLabel(null);
     }
   };

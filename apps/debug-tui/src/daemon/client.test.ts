@@ -22,7 +22,7 @@ describe("simulator daemon completion client", () => {
     expect(JSON.parse(String(requests[0].init?.body))).toEqual(body);
   });
 
-  test("posts debug logs to the daemon event stream", async () => {
+  test("posts debug logs to the daemon debug route", async () => {
     const requests: { url: string; init?: RequestInit }[] = [];
     const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();

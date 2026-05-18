@@ -50,7 +50,7 @@ import { resolveUserPath, warmFileListCache } from "@plannotator/shared/resolve-
 import { createEditorAnnotationHandler } from "./editor-annotations";
 import { createExternalAnnotationHandler } from "./external-annotations";
 import { isWSL } from "./browser";
-import type { SessionRequestHandler } from "./session-handler";
+import type { SessionEventBridge, SessionRequestHandler } from "./session-handler";
 
 // Re-export utilities
 export { isRemoteSession, getServerPort } from "./remote";
@@ -87,6 +87,8 @@ export interface ServerOptions {
   mode?: "archive";
   /** Custom plan save path — used by archive mode to find saved plans */
   customPlanPath?: string | null;
+  /** Optional daemon event bridge for live session-scoped events. */
+  sessionEvents?: SessionEventBridge;
 }
 
 export interface ServerResult {
@@ -166,7 +168,11 @@ export async function createPlannotatorSession(
   // --- Plan review mode setup (skip in archive mode) ---
   const draftKey = mode !== "archive" ? contentHash(plan) : "";
   const editorAnnotations = mode !== "archive" ? createEditorAnnotationHandler() : null;
-  const externalAnnotations = mode !== "archive" ? createExternalAnnotationHandler("plan") : null;
+  const externalAnnotations = mode !== "archive" ? createExternalAnnotationHandler("plan", {
+    publishEvent: (event) => options.sessionEvents?.publishEvent("external-annotations", event),
+    registerSnapshotProvider: (provider) =>
+      options.sessionEvents?.registerSnapshotProvider("external-annotations", provider),
+  }) : null;
   const slug = mode !== "archive" ? generateSlug(plan) : "";
 
   // Lazy cache for in-session archive browsing (plan review sidebar tab)
@@ -409,7 +415,7 @@ export async function createPlannotatorSession(
           const editorResponse = await editorAnnotations?.handle(req, url);
           if (editorResponse) return editorResponse;
 
-          // API: External annotations (SSE-based, for any external tool)
+          // API: External annotations (HTTP mutations + daemon WebSocket events)
           const externalResponse = await externalAnnotations?.handle(req, url, {
             disableIdleTimeout: () => context?.disableIdleTimeout?.(),
           });

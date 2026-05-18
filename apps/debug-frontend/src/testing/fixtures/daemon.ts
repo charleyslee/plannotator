@@ -1,4 +1,5 @@
 import {
+  PLANNOTATOR_DAEMON_PROTOCOL_VERSION,
   PLANNOTATOR_DAEMON_SESSION_VIEWS,
   getDaemonCapabilities,
 } from "@plannotator/shared/daemon-protocol";
@@ -17,7 +18,7 @@ export const daemonCapabilities = getDaemonCapabilities();
 export const daemonStatusFixture: ShellDaemonStatus = {
   ok: true,
   protocol: "plannotator-daemon",
-  protocolVersion: 1,
+  protocolVersion: PLANNOTATOR_DAEMON_PROTOCOL_VERSION,
   pid: 4242,
   endpoint: {
     hostname: "127.0.0.1",

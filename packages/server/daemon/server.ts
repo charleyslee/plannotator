@@ -2,22 +2,21 @@ import {
   PLANNOTATOR_DAEMON_SESSION_VIEWS,
   createDaemonErrorResponse,
   getDaemonCapabilities,
-  serializeDaemonEvent,
   type DaemonCreateSessionRequest,
   type DaemonEndpoint,
   type DaemonEvent,
   type DaemonSessionBootstrapResponse,
   type DaemonStatus,
+  type DaemonWebSocketClientMessage,
 } from "@plannotator/shared/daemon-protocol";
 import type { DaemonState } from "./state";
 import { DAEMON_AUTH_COOKIE, DAEMON_AUTH_QUERY_PARAM } from "./state";
 import { DaemonSessionStore, type DaemonSessionRecord } from "./session-store";
-import type { SessionRequestContext } from "../session-handler";
+import { DaemonEventHub } from "./event-hub";
+import type { SessionEventFamily, SessionRequestContext, SessionSnapshotProvider } from "../session-handler";
 import { handleFavicon } from "../shared-handlers";
 
 const RESULT_DELETE_GRACE_MS = 2_000;
-const DAEMON_EVENT_HEARTBEAT_MS = 15_000;
-const SSE_HEARTBEAT_COMMENT = ": heartbeat\n\n";
 const DAEMON_AUTH_COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
 export interface DaemonServerOptions {
@@ -34,7 +33,25 @@ export interface DaemonServerOptions {
 export interface DaemonFetchContext {
   endpoint: DaemonEndpoint;
   store: DaemonSessionStore;
+  publishSessionEvent: (
+    sessionId: string,
+    family: SessionEventFamily,
+    event: unknown,
+  ) => void;
+  registerSessionSnapshotProvider: (
+    sessionId: string,
+    family: SessionEventFamily,
+    provider: SessionSnapshotProvider,
+  ) => () => void;
 }
+
+export type DaemonFetchHandler = ((
+  req: Request,
+  requestContext?: SessionRequestContext,
+) => Promise<Response | undefined>) & {
+  eventHub: DaemonEventHub;
+  websocket: DaemonEventHub["websocket"];
+};
 
 function json(data: unknown, init?: ResponseInit): Response {
   return Response.json(data, init);
@@ -86,8 +103,33 @@ function cookieToken(req: Request): string | undefined {
   return undefined;
 }
 
-function hasDaemonAuth(req: Request, state: DaemonState): boolean {
-  return bearerToken(req) === state.authToken || cookieToken(req) === state.authToken;
+function queryToken(url: URL): string | undefined {
+  return url.searchParams.get(DAEMON_AUTH_QUERY_PARAM) ?? undefined;
+}
+
+function hasDaemonAuth(req: Request, state: DaemonState, url?: URL, options: { allowQuery?: boolean } = {}): boolean {
+  return (
+    bearerToken(req) === state.authToken ||
+    cookieToken(req) === state.authToken ||
+    (options.allowQuery === true && queryToken(url ?? new URL(req.url)) === state.authToken)
+  );
+}
+
+function isAuthBootstrapPage(req: Request, url: URL): boolean {
+  if (!isPageRequest(req)) return false;
+  if (url.pathname === "/") return true;
+  const session = sessionFromPath(url.pathname);
+  return !!session && !session.rest.startsWith("/api");
+}
+
+function isAllowedWebSocketOrigin(req: Request, url: URL): boolean {
+  const origin = req.headers.get("origin");
+  if (!origin) return true;
+  try {
+    return new URL(origin).origin === url.origin;
+  } catch {
+    return false;
+  }
 }
 
 function daemonAuthCookie(state: DaemonState): string {
@@ -144,17 +186,6 @@ function createApiBaseScript(apiBase: string): string {
   if (originalFetch) {
     window.fetch = (input, init) => originalFetch(rewrite(input), init);
   }
-
-  const OriginalEventSource = window.EventSource;
-  if (OriginalEventSource) {
-    window.EventSource = function(url, init) {
-      return new OriginalEventSource(rewrite(url), init);
-    };
-    window.EventSource.prototype = OriginalEventSource.prototype;
-    window.EventSource.CONNECTING = OriginalEventSource.CONNECTING;
-    window.EventSource.OPEN = OriginalEventSource.OPEN;
-    window.EventSource.CLOSED = OriginalEventSource.CLOSED;
-  }
 })();
 </script>`;
 }
@@ -170,15 +201,7 @@ function sessionShellHtml(shellHtmlContent: string, sessionId: string): string {
   return injectApiBase(shellHtmlContent, createApiBaseScript(apiBase));
 }
 
-function daemonEventHeaders(): HeadersInit {
-  return {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
-  };
-}
-
-export function createDaemonFetchHandler(options: DaemonServerOptions) {
+export function createDaemonFetchHandler(options: DaemonServerOptions): DaemonFetchHandler {
   const store = options.store ?? new DaemonSessionStore();
   const endpoint: DaemonEndpoint = {
     hostname: options.state.hostname,
@@ -186,13 +209,6 @@ export function createDaemonFetchHandler(options: DaemonServerOptions) {
     baseUrl: options.state.baseUrl,
     isRemote: options.state.isRemote,
   };
-
-  const context: DaemonFetchContext = { endpoint, store };
-  const encoder = new TextEncoder();
-  const subscribers = new Map<
-    ReadableStreamDefaultController<Uint8Array>,
-    ReturnType<typeof setInterval>
-  >();
 
   const makeStatus = (): DaemonStatus => ({
     ok: true,
@@ -205,32 +221,66 @@ export function createDaemonFetchHandler(options: DaemonServerOptions) {
     sessionCount: store.totalCount(),
   });
 
-  const sendEvent = (
-    controller: ReadableStreamDefaultController<Uint8Array>,
-    event: DaemonEvent,
-  ) => {
-    controller.enqueue(encoder.encode(serializeDaemonEvent(event)));
-  };
-
-  const removeSubscriber = (controller: ReadableStreamDefaultController<Uint8Array>) => {
-    const timer = subscribers.get(controller);
-    if (timer) clearInterval(timer);
-    subscribers.delete(controller);
-  };
-
-  const broadcast = (event: DaemonEvent) => {
-    for (const controller of subscribers.keys()) {
-      try {
-        sendEvent(controller, event);
-      } catch {
-        removeSubscriber(controller);
-      }
+  const parseResponsePayload = async (response: Response): Promise<unknown> => {
+    const text = await response.text();
+    if (!text) return undefined;
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
     }
   };
 
-  store.onMutation((event) => broadcast(event));
+  const dispatchAction = async (
+    message: Extract<DaemonWebSocketClientMessage, { type: "action" }>,
+  ): Promise<{ status: number; payload?: unknown }> => {
+    const record = store.get(message.sessionId);
+    if (!record?.handleRequest) {
+      throw new Error(`Session not found: ${message.sessionId}`);
+    }
+    const method = message.method.toUpperCase();
+    const path = message.path.startsWith("/") ? message.path : `/${message.path}`;
+    const actionUrl = new URL(path, endpoint.baseUrl);
+    if (actionUrl.pathname !== "/api" && !actionUrl.pathname.startsWith("/api/")) {
+      throw new Error("Daemon WebSocket actions must target a session /api path.");
+    }
 
-  return async function daemonFetch(req: Request, requestContext?: SessionRequestContext): Promise<Response> {
+    const init: RequestInit = { method };
+    if (message.body !== undefined) {
+      init.headers = { "Content-Type": "application/json" };
+      init.body = JSON.stringify(message.body);
+    }
+    const response = await record.handleRequest(new Request(actionUrl, init), actionUrl);
+    return {
+      status: response.status,
+      payload: await parseResponsePayload(response),
+    };
+  };
+
+  const eventHub = new DaemonEventHub({
+    daemonSnapshot: () => ({
+      status: makeStatus(),
+      sessions: store.list(),
+    }),
+    dispatchAction,
+  });
+
+  const context: DaemonFetchContext = {
+    endpoint,
+    store,
+    publishSessionEvent: (sessionId, family, event) => {
+      eventHub.publishSessionEvent(sessionId, family, event);
+    },
+    registerSessionSnapshotProvider: (sessionId, family, provider) =>
+      eventHub.registerSnapshotProvider(sessionId, family, provider),
+  };
+
+  store.onMutation((event) => eventHub.publishDaemonEvent(event));
+
+  const daemonFetch = async function daemonFetch(
+    req: Request,
+    requestContext?: SessionRequestContext,
+  ): Promise<Response | undefined> {
       const url = new URL(req.url);
 
       if (url.pathname === "/daemon/capabilities" && req.method === "GET") {
@@ -241,7 +291,7 @@ export function createDaemonFetchHandler(options: DaemonServerOptions) {
         return handleFavicon();
       }
 
-      if (isPageRequest(req) && url.searchParams.has(DAEMON_AUTH_QUERY_PARAM)) {
+      if (url.pathname !== "/daemon/ws" && isAuthBootstrapPage(req, url) && url.searchParams.has(DAEMON_AUTH_QUERY_PARAM)) {
         const token = url.searchParams.get(DAEMON_AUTH_QUERY_PARAM);
         if (token !== options.state.authToken) return daemonUnauthorized();
         url.searchParams.delete(DAEMON_AUTH_QUERY_PARAM);
@@ -258,45 +308,25 @@ export function createDaemonFetchHandler(options: DaemonServerOptions) {
         return html(options.shellHtmlContent);
       }
 
-      if (url.pathname.startsWith("/daemon/") && !hasDaemonAuth(req, options.state)) {
+      if (url.pathname === "/daemon/ws" && req.method === "GET") {
+        if (!isAllowedWebSocketOrigin(req, url)) {
+          return json(createDaemonErrorResponse("unauthorized", "Daemon WebSocket origin is not allowed."), { status: 403 });
+        }
+        if (!requestContext?.upgradeWebSocket) {
+          return json(createDaemonErrorResponse("invalid-request", "WebSocket upgrade is unavailable."), { status: 426 });
+        }
+        const upgraded = requestContext.upgradeWebSocket({
+          daemonAuthenticated: hasDaemonAuth(req, options.state, url, { allowQuery: true }),
+        });
+        return upgraded;
+      }
+
+      if (url.pathname.startsWith("/daemon/") && !hasDaemonAuth(req, options.state, url)) {
         return daemonUnauthorized();
       }
 
       if (url.pathname === "/daemon/events" && req.method === "GET") {
-        requestContext?.disableIdleTimeout?.();
-        let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
-        const stream = new ReadableStream<Uint8Array>({
-          start(controller) {
-            streamController = controller;
-            const heartbeat = setInterval(() => {
-              try {
-                controller.enqueue(encoder.encode(SSE_HEARTBEAT_COMMENT));
-              } catch {
-                removeSubscriber(controller);
-              }
-            }, DAEMON_EVENT_HEARTBEAT_MS);
-            heartbeat.unref?.();
-            subscribers.set(controller, heartbeat);
-
-            const at = new Date().toISOString();
-            const status = makeStatus();
-            sendEvent(controller, {
-              type: "snapshot",
-              at,
-              status,
-              sessions: store.list(),
-            });
-            sendEvent(controller, {
-              type: "daemon-status",
-              at,
-              status,
-            });
-          },
-          cancel() {
-            if (streamController) removeSubscriber(streamController);
-          },
-        });
-        return new Response(stream, { headers: daemonEventHeaders() });
+        return json(createDaemonErrorResponse("invalid-request", "Daemon events moved to /daemon/ws."), { status: 410 });
       }
 
       if (url.pathname === "/daemon/events/debug" && req.method === "POST") {
@@ -317,7 +347,7 @@ export function createDaemonFetchHandler(options: DaemonServerOptions) {
         const level = rawLevel === "debug" || rawLevel === "info" || rawLevel === "warn" || rawLevel === "error"
           ? rawLevel
           : "info";
-        broadcast({
+        eventHub.publishDaemonEvent({
           type: "debug-log",
           at: optionalString(body.at) ?? new Date().toISOString(),
           source: optionalString(body.source) ?? "external",
@@ -357,7 +387,7 @@ export function createDaemonFetchHandler(options: DaemonServerOptions) {
           return json({ ok: true, session: store.summary(record, { includeRemoteShare: true }) }, { status: 201 });
         } catch (err) {
           const message = err instanceof Error ? err.message : "Failed to create session.";
-          broadcast({
+          eventHub.publishDaemonEvent({
             type: "daemon-error",
             at: new Date().toISOString(),
             code: "internal-error",
@@ -464,4 +494,8 @@ export function createDaemonFetchHandler(options: DaemonServerOptions) {
 
       return new Response("Not found", { status: 404 });
     };
+
+  daemonFetch.eventHub = eventHub;
+  daemonFetch.websocket = eventHub.websocket;
+  return daemonFetch;
 }

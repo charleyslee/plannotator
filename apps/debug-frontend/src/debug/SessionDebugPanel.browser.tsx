@@ -51,7 +51,7 @@ describe("SessionDebugPanel browser rendering", () => {
       deleteSession: async () => {
         throw new Error("not used");
       },
-      getEventsUrl: () => "/daemon/events",
+      getWebSocketUrl: () => "/daemon/ws",
       getSessionApiUrl: (sessionId, path) => `/s/${sessionId}${path}`,
       probeSessionApi: async (_sessionId, path) => {
         calls.push(`probe:${path}`);
@@ -77,5 +77,56 @@ describe("SessionDebugPanel browser rendering", () => {
     });
 
     expect(calls).toEqual(["probe:/api/diff", "action:review-approve"]);
+  });
+
+  test("keeps failed actions visible instead of navigating away", async () => {
+    const client: DaemonApiClient = {
+      getStatus: async () => {
+        throw new Error("not used");
+      },
+      listSessions: async () => {
+        throw new Error("not used");
+      },
+      getSession: async () => {
+        throw new Error("not used");
+      },
+      getSessionBootstrap: async () => {
+        throw new Error("not used");
+      },
+      cancelSession: async () => {
+        throw new Error("not used");
+      },
+      deleteSession: async () => {
+        throw new Error("not used");
+      },
+      getWebSocketUrl: () => "/daemon/ws",
+      getSessionApiUrl: (sessionId, path) => `/s/${sessionId}${path}`,
+      probeSessionApi: async () => ({ ok: true, data: {} }),
+      runSessionAction: async () => ({
+        ok: false,
+        error: {
+          kind: "http-error",
+          status: 401,
+          message: "Daemon WebSocket actions require authentication.",
+        },
+      }),
+    };
+
+    const rendered = await renderBrowser(
+      wrapWithRouter(<SessionDebugPanel bootstrap={sessionBootstraps.review} client={client} />),
+    );
+    cleanup = () => cleanupBrowser(rendered.root, rendered.container);
+
+    const lgtm = Array.from(rendered.container.querySelectorAll("button")).find(
+      (button) => button.textContent === "LGTM",
+    );
+    await act(async () => {
+      lgtm?.click();
+    });
+
+    expect(rendered.container.textContent).toContain(
+      "Daemon WebSocket actions require authentication.",
+    );
+    expect(rendered.container.textContent).toContain("Session bootstrap");
   });
 });

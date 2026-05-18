@@ -1,7 +1,7 @@
 import { getServerHostname, getServerPort, isRemoteSession } from "../remote";
 import { acquireDaemonLock, createDaemonState, removeDaemonState, writeDaemonState, type DaemonLock, type DaemonState, type DaemonStateOptions } from "./state";
 import { DaemonSessionStore, type DaemonSessionRecord } from "./session-store";
-import { createDaemonFetchHandler, type DaemonFetchContext } from "./server";
+import { createDaemonFetchHandler, type DaemonFetchContext, type DaemonFetchHandler } from "./server";
 import type { DaemonCreateSessionRequest } from "@plannotator/shared/daemon-protocol";
 
 export interface StartDaemonRuntimeOptions extends DaemonStateOptions {
@@ -43,7 +43,7 @@ export async function startDaemonRuntime(options: StartDaemonRuntimeOptions): Pr
   let runtime: DaemonRuntime | undefined;
   let cleanupTimer: ReturnType<typeof setInterval> | undefined;
   let server: ReturnType<typeof Bun.serve> | undefined;
-  let handler: ReturnType<typeof createDaemonFetchHandler> | undefined;
+  let handler: DaemonFetchHandler | undefined;
   let stopping = false;
 
   try {
@@ -55,7 +55,14 @@ export async function startDaemonRuntime(options: StartDaemonRuntimeOptions): Pr
         if (!handler) return new Response("Daemon is starting", { status: 503 });
         return handler(req, {
           disableIdleTimeout: () => server.timeout(req, 0),
+          upgradeWebSocket: (data) =>
+            server.upgrade(req, { data }) ? undefined : new Response("WebSocket upgrade failed", { status: 400 }),
         });
+      },
+      websocket: {
+        open: (socket) => handler?.websocket.open?.(socket as never),
+        message: (socket, message) => handler?.websocket.message?.(socket as never, message),
+        close: (socket, code, reason) => handler?.websocket.close?.(socket as never, code, reason),
       },
       error: (error) => {
         console.error("[Plannotator daemon] Unhandled request error:", error);
@@ -94,6 +101,7 @@ export async function startDaemonRuntime(options: StartDaemonRuntimeOptions): Pr
       stop: async () => {
         if (stopping) return;
         stopping = true;
+        handler?.eventHub.closeAll();
         activeServer.stop();
         if (cleanupTimer) {
           clearInterval(cleanupTimer);

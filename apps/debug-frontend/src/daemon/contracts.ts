@@ -2,11 +2,15 @@ import type {
   DaemonEndpoint,
   DaemonErrorResponse,
   DaemonEvent,
+  DaemonEventFamily,
   DaemonSessionBootstrapResponse,
   DaemonSessionStatus,
   DaemonSessionSummary,
   DaemonSessionView,
   DaemonStatus,
+  DaemonWebSocketClientMessage,
+  DaemonWebSocketScope,
+  DaemonWebSocketServerMessage,
 } from "@plannotator/shared/daemon-protocol";
 
 export type ShellSessionView = DaemonSessionView;
@@ -39,6 +43,10 @@ export interface ShellDeleteSessionResponse {
 }
 
 export type ShellDaemonResponse<T> = T | DaemonErrorResponse;
+export type ShellDaemonEventFamily = DaemonEventFamily;
+export type ShellDaemonWebSocketScope = DaemonWebSocketScope;
+export type ShellDaemonWebSocketClientMessage = DaemonWebSocketClientMessage;
+export type ShellDaemonWebSocketServerMessage = DaemonWebSocketServerMessage;
 
 export type ShellSessionLifecycleStatus = DaemonSessionStatus;
 export type ShellDaemonEvent =

@@ -35,10 +35,6 @@ export function apiFetch(input: string, init?: RequestInit): Promise<Response> {
   return fetch(apiPath(input), init);
 }
 
-export function apiEventSource(path: string, init?: EventSourceInit): EventSource {
-  return new EventSource(apiPath(path), init);
-}
-
 export function getApiOriginAndBase(): string {
   if (typeof window === "undefined") return "/api";
   return `${window.location.origin}${getApiBase()}`;

@@ -263,7 +263,7 @@ const ReviewApp: React.FC = () => {
   // VS Code editor annotations (only polls when inside VS Code webview)
   const { editorAnnotations, deleteEditorAnnotation } = useEditorAnnotations();
 
-  // External annotations (SSE-based, for any external tool)
+  // External annotations (HTTP mutations + daemon WebSocket events)
   // TODO: Replace !!origin with a dedicated isApiMode boolean (set on /api/diff success/failure).
   // origin is an identity field, not a connectivity signal — the standalone dev server
   // (apps/review/) doesn't set it, so external annotations are silently disabled there.
@@ -364,10 +364,10 @@ const ReviewApp: React.FC = () => {
     !!gitContext?.diffOptions?.length ||
     !!gitContext?.worktrees?.length;
 
-  // Merge local + SSE annotations, deduping draft-restored externals against
-  // live SSE versions. Prefer the SSE version when both exist (same source,
+  // Merge local + live annotations, deduping draft-restored externals against
+  // live WebSocket versions. Prefer the live version when both exist (same source,
   // type, and originalText). This avoids the timing issues of an effect-based
-  // cleanup — draft-restored externals persist until SSE actually re-delivers them.
+  // cleanup — draft-restored externals persist until live events re-deliver them.
   const allAnnotations = useMemo(() => {
     if (externalAnnotations.length === 0) return annotations;
 
@@ -1431,7 +1431,7 @@ const ReviewApp: React.FC = () => {
     handleCodeNavRequest, codeNav.result, codeNav.isLoading, codeNav.activeSymbol,
   ]);
 
-  // Separate context for high-frequency job logs — prevents re-rendering all panels on every SSE event
+  // Separate context for high-frequency job logs — prevents re-rendering all panels on every live event
   const jobLogsValue = useMemo(() => ({ jobLogs: agentJobs.jobLogs }), [agentJobs.jobLogs]);
 
   // Copy raw diff to clipboard

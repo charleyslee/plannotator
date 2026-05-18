@@ -99,8 +99,8 @@ export const sessionApiGroups: Record<string, SessionApiGroup[]> = {
     },
   ],
   shared: [
-    endpointGroup("external-annotations", "External annotation stream and CRUD", [
-      ["GET", "/api/external-annotations/stream"],
+    endpointGroup("external-annotations", "External annotation live events and CRUD", [
+      ["WS", "/daemon/ws external-annotations"],
       ["GET", "/api/external-annotations"],
       ["POST", "/api/external-annotations"],
       ["PATCH", "/api/external-annotations"],
@@ -114,7 +114,7 @@ export const sessionApiGroups: Record<string, SessionApiGroup[]> = {
     endpointGroup("agents", "Agent list and background jobs", [
       ["GET", "/api/agents"],
       ["GET", "/api/agents/capabilities"],
-      ["GET", "/api/agents/jobs/stream"],
+      ["WS", "/daemon/ws agent-jobs"],
       ["GET", "/api/agents/jobs"],
       ["POST", "/api/agents/jobs"],
       ["DELETE", "/api/agents/jobs"],

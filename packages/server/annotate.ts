@@ -22,7 +22,7 @@ import { createExternalAnnotationHandler } from "./external-annotations";
 import { saveConfig, detectGitUser, getServerConfig } from "./config";
 import { dirname, resolve as resolvePath } from "path";
 import { isWSL } from "./browser";
-import type { SessionRequestHandler } from "./session-handler";
+import type { SessionEventBridge, SessionRequestHandler } from "./session-handler";
 
 // Re-export utilities
 export { isRemoteSession, getServerPort } from "./remote";
@@ -65,6 +65,8 @@ export interface AnnotateServerOptions {
   renderHtml?: boolean;
   /** Called when server starts with the URL, remote status, and port */
   onReady?: (url: string, isRemote: boolean, port: number) => void;
+  /** Optional daemon event bridge for live session-scoped events. */
+  sessionEvents?: SessionEventBridge;
 }
 
 export interface AnnotateServerResult {
@@ -128,7 +130,11 @@ export async function createAnnotateSession(
       ? `folder:${resolvePath(folderPath)}`
       : renderHtml && rawHtml ? rawHtml : markdown;
   const draftKey = contentHash(draftSource);
-  const externalAnnotations = createExternalAnnotationHandler("plan");
+  const externalAnnotations = createExternalAnnotationHandler("plan", {
+    publishEvent: (event) => options.sessionEvents?.publishEvent("external-annotations", event),
+    registerSnapshotProvider: (provider) =>
+      options.sessionEvents?.registerSnapshotProvider("external-annotations", provider),
+  });
 
   // Detect repo info (cached for this session)
   const repoInfo = await getRepoInfo(cwd);
@@ -243,7 +249,7 @@ export async function createAnnotateSession(
             return handleDraftLoad(draftKey);
           }
 
-          // API: External annotations (SSE-based, for any external tool)
+          // API: External annotations (HTTP mutations + daemon WebSocket events)
           const externalResponse = await externalAnnotations.handle(req, url, {
             disableIdleTimeout: () => context?.disableIdleTimeout?.(),
           });

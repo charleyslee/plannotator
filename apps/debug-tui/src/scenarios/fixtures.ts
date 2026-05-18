@@ -9,8 +9,6 @@ export interface WorkspaceFixture {
   htmlPath: string;
   planPath: string;
   archivePath: string;
-  interviewBundlePath: string;
-  factsBundlePath: string;
   codexHome: string;
   copilotHome: string;
   geminiTranscriptPath: string;
@@ -36,35 +34,12 @@ export async function createWorkspaceFixture(label: string): Promise<WorkspaceFi
   const geminiPlanFilename = "simulator-plan.md";
   const geminiTranscriptPath = join(root, "gemini", "chats", "session-1.json");
 
-  const goalsDir = join(root, "goals");
-  const interviewBundlePath = join(goalsDir, "interview.json");
-  const factsBundlePath = join(goalsDir, "facts.json");
-
   await mkdir(join(root, "docs"), { recursive: true });
   await mkdir(archivePath, { recursive: true });
-  await mkdir(goalsDir, { recursive: true });
   await writeFile(markdownPath, "# Notes\n\nAnnotate this markdown fixture.\n");
   await writeFile(htmlPath, "<article><h1>Fixture</h1><p>Annotate this HTML fixture.</p></article>\n");
   await writeFile(planPath, PLAN_MARKDOWN);
   await writeFile(join(archivePath, "approved-plan.md"), "# Approved fixture\n\nArchived plan.\n");
-  await writeFile(interviewBundlePath, JSON.stringify({
-    stage: "interview",
-    title: "Simulator goal setup",
-    goalSlug: "simulator-goal",
-    questions: [
-      { id: "scope", prompt: "What is the scope of this goal?", answerMode: "text" },
-      { id: "priority", prompt: "What priority is this?", answerMode: "single", options: [{ id: "high", label: "High" }, { id: "medium", label: "Medium" }, { id: "low", label: "Low" }], recommendedOptionIds: ["medium"] },
-    ],
-  }));
-  await writeFile(factsBundlePath, JSON.stringify({
-    stage: "facts",
-    title: "Simulator facts review",
-    goalSlug: "simulator-goal",
-    facts: [
-      { id: "f1", text: "The daemon manages session lifecycle.", accepted: false, removed: false, automatedVerification: false },
-      { id: "f2", text: "The CLI routes through the daemon.", accepted: true, removed: false, automatedVerification: true },
-    ],
-  }));
 
   await createCodexFixture(codexHome);
   await createCopilotFixture(copilotHome, root);
@@ -81,8 +56,6 @@ export async function createWorkspaceFixture(label: string): Promise<WorkspaceFi
     htmlPath,
     planPath,
     archivePath,
-    interviewBundlePath,
-    factsBundlePath,
     codexHome,
     copilotHome,
     geminiTranscriptPath,

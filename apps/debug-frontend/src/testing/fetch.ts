@@ -1,3 +1,5 @@
+import { PLANNOTATOR_DAEMON_PROTOCOL_VERSION } from "@plannotator/shared/daemon-protocol";
+
 export interface RecordedRequest {
   url: string;
   init?: RequestInit;
@@ -24,7 +26,7 @@ export function createFixtureFetch(routes: Record<string, unknown | Response>): 
         {
           ok: false,
           protocol: "plannotator-daemon",
-          protocolVersion: 1,
+          protocolVersion: PLANNOTATOR_DAEMON_PROTOCOL_VERSION,
           error: {
             code: "session-not-found",
             message: `No fixture route for ${normalized}`,

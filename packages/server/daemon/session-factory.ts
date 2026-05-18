@@ -47,6 +47,7 @@ import {
   type DaemonSessionRecord,
 } from "./session-store";
 import type { DaemonFetchContext } from "./server";
+import type { SessionEventBridge } from "../session-handler";
 
 export interface DaemonSessionFactoryOptions {
   planHtmlContent: string;
@@ -81,6 +82,14 @@ function getRequestCwd(request: { cwd?: string }): string {
 
 function makeSessionUrl(baseUrl: string, id: string): string {
   return `${baseUrl.replace(/\/$/, "")}/s/${encodeURIComponent(id)}`;
+}
+
+function createSessionEventBridge(context: DaemonFetchContext, id: string): SessionEventBridge {
+  return {
+    publishEvent: (family, event) => context.publishSessionEvent(id, family, event),
+    registerSnapshotProvider: (family, provider) =>
+      context.registerSessionSnapshotProvider(id, family, provider),
+  };
 }
 
 function registerSessionDecision<TResult, TStored = TResult>(
@@ -486,6 +495,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
     const sharingEnabled = request.sharingEnabled ?? options.sharingEnabled ?? true;
     const shareBaseUrl = request.shareBaseUrl ?? options.shareBaseUrl;
     const pasteApiUrl = request.pasteApiUrl ?? options.pasteApiUrl;
+    const sessionEvents = createSessionEventBridge(context, id);
 
     if (request.action === "plan") {
       const plan = await readPlanRequest(request, cwd);
@@ -501,6 +511,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         shareBaseUrl,
         pasteApiUrl,
         htmlContent: options.planHtmlContent,
+        sessionEvents,
         opencodeClient: request.availableAgents
           ? { app: { agents: async () => ({ data: request.availableAgents }) } }
           : undefined,
@@ -565,6 +576,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         shareBaseUrl,
         pasteApiUrl,
         htmlContent: options.planHtmlContent,
+        sessionEvents,
       });
       const record = context.store.create({
         id,
@@ -610,6 +622,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
           sharingEnabled,
           shareBaseUrl,
           htmlContent: options.reviewHtmlContent,
+          sessionEvents,
           opencodeClient: request.availableAgents
             ? { app: { agents: async () => ({ data: request.availableAgents }) } }
             : undefined,

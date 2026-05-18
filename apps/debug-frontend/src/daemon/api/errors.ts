@@ -22,6 +22,7 @@ export type DaemonApiError =
       kind: "http-error";
       status: number;
       message: string;
+      payload?: unknown;
     }
   | {
       kind: "invalid-payload";

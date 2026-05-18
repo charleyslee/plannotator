@@ -234,8 +234,11 @@ The daemon is the single long-running Bun server used by normal plan/review/anno
 | `/daemon/sessions/:id/cancel` | POST | Cancel a session and dispose its resources |
 | `/daemon/sessions/:id` | DELETE | Delete a session record |
 | `/daemon/shutdown` | POST | Ask the daemon to stop |
+| `/daemon/ws` | WebSocket | Multiplex daemon lifecycle events, session-scoped external annotation events, agent job events, and correlated session actions |
 | `/s/:id` | GET | Serve the browser HTML for a session |
 | `/s/:id/api/...` | Any | Route browser API requests to that session's plan/review/annotate handler |
+
+Runtime live updates for daemon lifecycle events, external annotations, and agent jobs are delivered through `/daemon/ws`. Session-scoped updates subscribe by `{ family, sessionId }`. HTTP endpoints below remain for snapshots, mutations, uploads, and large payloads. AI query token streaming remains on `/api/ai/query`.
 
 ### Plan Server (`packages/server/index.ts`)
 
@@ -260,8 +263,7 @@ The daemon is the single long-running Bun server used by normal plan/review/anno
 | `/api/draft`          | GET/POST/DELETE | Auto-save annotation drafts to survive server crashes |
 | `/api/editor-annotations` | GET | List editor annotations (VS Code only) |
 | `/api/editor-annotation` | POST/DELETE | Add or remove an editor annotation (VS Code only) |
-| `/api/external-annotations/stream` | GET | SSE stream for real-time external annotations |
-| `/api/external-annotations` | GET | Snapshot of external annotations (polling fallback, `?since=N` for version gating) |
+| `/api/external-annotations` | GET | Snapshot of external annotations (`?since=N` for version gating) |
 | `/api/external-annotations` | POST | Add external annotations (single or batch `{ annotations: [...] }`) |
 | `/api/external-annotations` | PATCH | Update fields on a single annotation (`?id=`) |
 | `/api/external-annotations` | DELETE | Remove by `?id=`, `?source=`, or clear all |
@@ -286,14 +288,12 @@ The daemon is the single long-running Bun server used by normal plan/review/anno
 | `/api/ai/abort` | POST | Abort the current query |
 | `/api/ai/permission` | POST | Respond to a permission request |
 | `/api/ai/sessions` | GET | List active sessions |
-| `/api/external-annotations/stream` | GET | SSE stream for real-time external annotations |
-| `/api/external-annotations` | GET | Snapshot of external annotations (polling fallback, `?since=N` for version gating) |
+| `/api/external-annotations` | GET | Snapshot of external annotations (`?since=N` for version gating) |
 | `/api/external-annotations` | POST | Add external annotations (single or batch `{ annotations: [...] }`) |
 | `/api/external-annotations` | PATCH | Update fields on a single annotation (`?id=`) |
 | `/api/external-annotations` | DELETE | Remove by `?id=`, `?source=`, or clear all |
 | `/api/agents/capabilities` | GET | Check available agent providers (claude, codex, tour) |
-| `/api/agents/jobs/stream` | GET | SSE stream for real-time agent job status updates |
-| `/api/agents/jobs` | GET | Snapshot of agent jobs (polling fallback, `?since=N` for version gating) |
+| `/api/agents/jobs` | GET | Snapshot of agent jobs (`?since=N` for version gating) |
 | `/api/agents/jobs` | POST | Launch an agent job (body: `{ provider, command, label }`) |
 | `/api/agents/jobs` | DELETE | Kill all running agent jobs |
 | `/api/agents/jobs/:id` | DELETE | Kill a specific agent job |
@@ -318,8 +318,7 @@ The daemon is the single long-running Bun server used by normal plan/review/anno
 | `/api/doc`            | GET    | Serve linked .md/.mdx/.html file or code file (`?path=<path>&base=<dir>`) |
 | `/api/doc/exists`     | POST   | Batch-validate code-file paths (body: `{ paths: string[], base?: string }`) |
 | `/api/draft`          | GET/POST/DELETE | Auto-save annotation drafts to survive server crashes |
-| `/api/external-annotations/stream` | GET | SSE stream for real-time external annotations |
-| `/api/external-annotations` | GET | Snapshot of external annotations (polling fallback, `?since=N` for version gating) |
+| `/api/external-annotations` | GET | Snapshot of external annotations (`?since=N` for version gating) |
 | `/api/external-annotations` | POST | Add external annotations (single or batch `{ annotations: [...] }`) |
 | `/api/external-annotations` | PATCH | Update fields on a single annotation (`?id=`) |
 | `/api/external-annotations` | DELETE | Remove by `?id=`, `?source=`, or clear all |

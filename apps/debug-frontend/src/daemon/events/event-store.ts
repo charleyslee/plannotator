@@ -5,7 +5,13 @@ import type { ShellDaemonEvent, ShellDaemonStatus, ShellSessionSummary } from ".
 const MAX_EVENTS = 100;
 const TERMINAL_STATUSES = new Set(["completed", "cancelled", "expired", "failed"]);
 
-export type DaemonEventConnectionState = "idle" | "connecting" | "open" | "polling" | "error";
+export type DaemonEventConnectionState =
+  | "idle"
+  | "connecting"
+  | "open"
+  | "closed"
+  | "polling"
+  | "error";
 
 export interface DaemonDebugStateSnapshot {
   connectionState: DaemonEventConnectionState;
