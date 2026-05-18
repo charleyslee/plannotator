@@ -30,6 +30,7 @@ import { createGoalSetupSession } from "../goal-setup";
 import { createReviewSession } from "../review";
 import { detectProjectName } from "../project";
 import { createRemoteShareNotice } from "../share-url";
+import { registerProject } from "./project-registry";
 import {
   gitRuntime,
   prepareLocalReviewDiff,
@@ -488,6 +489,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
     const request = createRequest.request;
     const cwd = getRequestCwd(request);
     const project = (await detectProjectName(cwd)) ?? "_unknown";
+    try { registerProject(project, cwd); } catch {}
     const id = createDaemonSessionId();
     const url = makeSessionUrl(context.endpoint.baseUrl, id);
     const ttlMs = request.timeoutMs === null
@@ -524,6 +526,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         mode: "plan",
         url,
         project,
+        cwd,
         label: `plugin-plan-${request.origin}-${project}`,
         origin: request.origin,
         ttlMs,
@@ -551,6 +554,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         mode: "archive",
         url,
         project,
+        cwd,
         label: `plugin-archive-${request.origin}-${project}`,
         origin: request.origin,
         ttlMs,
@@ -586,6 +590,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         mode: "annotate",
         url,
         project,
+        cwd,
         label: input.folderPath
           ? `plugin-annotate-${request.origin}-${basename(input.folderPath)}`
           : `plugin-annotate-${request.origin}-${input.mode === "annotate-last" ? "last" : basename(input.filePath)}`,
@@ -641,6 +646,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         mode: "review",
         url,
         project,
+        cwd,
         label: input.prMetadata
           ? `plugin-${getMRLabel(input.prMetadata).toLowerCase()}-review-${getDisplayRepo(input.prMetadata)}${getMRNumberLabel(input.prMetadata)}`
           : `plugin-review-${request.origin}-${project}`,
@@ -666,6 +672,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         mode: "goal-setup",
         url,
         project,
+        cwd,
         label: `goal-setup-${bundle.stage}-${request.goalSlug || project}`,
         origin: request.origin,
         ttlMs,

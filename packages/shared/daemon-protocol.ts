@@ -17,6 +17,7 @@ export const PLANNOTATOR_DAEMON_FEATURES = [
   "session-events",
   "session-actions",
   "debug-events",
+  "project-registry",
 ] as const;
 
 export const PLANNOTATOR_DAEMON_EVENT_FAMILIES = [
@@ -77,6 +78,7 @@ export interface DaemonSessionSummary {
   status: DaemonSessionStatus;
   url: string;
   project: string;
+  cwd?: string;
   label: string;
   origin?: string;
   createdAt: string;
@@ -124,6 +126,17 @@ export interface DaemonCancelSessionResponse {
 export interface DaemonShutdownResponse {
   ok: true;
   shuttingDown: true;
+}
+
+export interface DaemonProjectEntry {
+  name: string;
+  cwd: string;
+  lastSeen: string;
+}
+
+export interface DaemonProjectListResponse {
+  ok: true;
+  projects: DaemonProjectEntry[];
 }
 
 export type DaemonErrorCode =

@@ -50,6 +50,7 @@
 @import "./themes/slack.css";
 @import "./themes/snazzy-light.css";
 @import "./themes/vitesse-black.css";
+@import "./themes/diffkit.css";
 @import "./print.css";
 
 /* Tailwind bridge — maps CSS vars to utility classes */

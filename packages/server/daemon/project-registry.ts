@@ -1,0 +1,93 @@
+import type { DaemonProjectEntry } from "@plannotator/shared/daemon-protocol";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
+
+export interface ProjectRegistryOptions {
+  baseDir?: string;
+}
+
+function registryPath(options: ProjectRegistryOptions = {}): string {
+  const dir = options.baseDir ?? join(homedir(), ".plannotator");
+  return join(dir, "projects.json");
+}
+
+function isProjectEntry(value: unknown): value is DaemonProjectEntry {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.name === "string" &&
+    typeof v.cwd === "string" &&
+    typeof v.lastSeen === "string"
+  );
+}
+
+export function readProjectRegistry(options: ProjectRegistryOptions = {}): DaemonProjectEntry[] {
+  const path = registryPath(options);
+  try {
+    const raw = readFileSync(path, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isProjectEntry);
+  } catch {
+    return [];
+  }
+}
+
+export function writeProjectRegistry(
+  entries: DaemonProjectEntry[],
+  options: ProjectRegistryOptions = {},
+): void {
+  const path = registryPath(options);
+  const dir = join(path, "..");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path, JSON.stringify(entries, null, 2), "utf-8");
+}
+
+export function registerProject(
+  name: string,
+  cwd: string,
+  options: ProjectRegistryOptions = {},
+): DaemonProjectEntry {
+  const entries = readProjectRegistry(options);
+  const now = new Date().toISOString();
+  const existing = entries.find((e) => e.name === name);
+  if (existing) {
+    existing.cwd = cwd;
+    existing.lastSeen = now;
+    writeProjectRegistry(entries, options);
+    return existing;
+  }
+  const entry: DaemonProjectEntry = { name, cwd, lastSeen: now };
+  entries.push(entry);
+  writeProjectRegistry(entries, options);
+  return entry;
+}
+
+export function removeProject(
+  name: string,
+  options: ProjectRegistryOptions = {},
+): boolean {
+  const entries = readProjectRegistry(options);
+  const filtered = entries.filter((e) => e.name !== name);
+  if (filtered.length === entries.length) return false;
+  writeProjectRegistry(filtered, options);
+  return true;
+}
+
+export function listProjects(options: ProjectRegistryOptions = {}): DaemonProjectEntry[] {
+  const entries = readProjectRegistry(options);
+  return entries.sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
+}
+
+export function addProject(
+  cwd: string,
+  name: string | undefined,
+  options: ProjectRegistryOptions = {},
+): DaemonProjectEntry {
+  if (!existsSync(cwd)) {
+    throw new Error(`Directory does not exist: ${cwd}`);
+  }
+  const projectName = name ?? cwd.split("/").filter(Boolean).pop() ?? "unknown";
+  return registerProject(projectName, cwd, options);
+}

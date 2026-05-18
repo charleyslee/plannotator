@@ -15,6 +15,7 @@ import { DaemonSessionStore, type DaemonSessionRecord } from "./session-store";
 import { DaemonEventHub } from "./event-hub";
 import type { SessionEventFamily, SessionRequestContext, SessionSnapshotProvider } from "../session-handler";
 import { handleFavicon } from "../shared-handlers";
+import { addProject, listProjects, removeProject } from "./project-registry";
 
 const RESULT_DELETE_GRACE_MS = 2_000;
 const DAEMON_AUTH_COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
@@ -451,6 +452,45 @@ export function createDaemonFetchHandler(options: DaemonServerOptions): DaemonFe
         }, 0);
         timer.unref?.();
         return json({ ok: true, shuttingDown: true });
+      }
+
+      if (url.pathname === "/daemon/projects" && req.method === "GET") {
+        return json({ ok: true, projects: listProjects() });
+      }
+
+      if (url.pathname === "/daemon/projects" && req.method === "POST") {
+        if (!isJsonRequest(req)) {
+          return json(createDaemonErrorResponse("invalid-request", "Project requests must use application/json."), { status: 415 });
+        }
+        let body: { name?: unknown; cwd?: unknown };
+        try {
+          body = await req.json() as { name?: unknown; cwd?: unknown };
+        } catch {
+          return json(createDaemonErrorResponse("invalid-request", "Invalid project request JSON."), { status: 400 });
+        }
+        if (typeof body.cwd !== "string" || body.cwd.length === 0) {
+          return json(createDaemonErrorResponse("invalid-request", "Project requires a cwd path."), { status: 400 });
+        }
+        const name = typeof body.name === "string" && body.name.length > 0 ? body.name : undefined;
+        try {
+          const entry = addProject(body.cwd, name);
+          return json({ ok: true, project: entry }, { status: 201 });
+        } catch (err) {
+          return json(
+            createDaemonErrorResponse("invalid-request", err instanceof Error ? err.message : "Failed to add project."),
+            { status: 400 },
+          );
+        }
+      }
+
+      const projectRoute = url.pathname.match(/^\/daemon\/projects\/([^/]+)$/);
+      if (projectRoute && req.method === "DELETE") {
+        const name = decodeURIComponent(projectRoute[1]);
+        const removed = removeProject(name);
+        if (!removed) {
+          return json(createDaemonErrorResponse("invalid-request", `Project not found: ${name}`), { status: 404 });
+        }
+        return json({ ok: true });
       }
 
       const browserSession = sessionFromPath(url.pathname);

@@ -13,6 +13,7 @@ export interface DaemonSessionRecord<TResult = unknown> {
   status: DaemonSessionStatus;
   url: string;
   project: string;
+  cwd?: string;
   label: string;
   origin?: string;
   createdAt: string;
@@ -32,6 +33,7 @@ export interface CreateDaemonSessionInput<TResult = unknown> {
   mode: DaemonSessionMode;
   url: string;
   project: string;
+  cwd?: string;
   label: string;
   origin?: string;
   ttlMs?: number;
@@ -100,6 +102,7 @@ export class DaemonSessionStore {
       url: input.url,
       project: input.project,
       label: input.label,
+      ...(input.cwd && { cwd: input.cwd }),
       ...(input.origin && { origin: input.origin }),
       createdAt: iso(now),
       updatedAt: iso(now),
@@ -142,6 +145,7 @@ export class DaemonSessionStore {
       status: record.status,
       url: record.url,
       project: record.project,
+      ...(record.cwd && { cwd: record.cwd }),
       label: record.label,
       ...(record.origin && { origin: record.origin }),
       createdAt: record.createdAt,
