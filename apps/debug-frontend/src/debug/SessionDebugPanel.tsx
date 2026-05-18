@@ -36,9 +36,9 @@ const SESSION_ACTIONS: Partial<Record<ShellSessionSummary["mode"], SessionAction
     { action: "annotate-exit", label: "Exit", role: "secondary" },
   ],
   archive: [{ action: "archive-done", label: "Close", role: "secondary" }],
-  "setup-goal": [
-    { action: "plan-approve", label: "Approve", role: "approve" },
-    { action: "plan-deny", label: "Deny", role: "deny" },
+  "goal-setup": [
+    { action: "goal-setup-submit", label: "Submit", role: "approve" },
+    { action: "goal-setup-exit", label: "Exit", role: "deny" },
   ],
 };
 

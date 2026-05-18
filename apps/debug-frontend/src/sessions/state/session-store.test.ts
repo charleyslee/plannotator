@@ -13,7 +13,7 @@ describe("session store", () => {
       "review-session-2",
       "annotate-session-3",
       "archive-session-4",
-      "setup-goal-session-5",
+      "goal-setup-session-5",
     ]);
     expect(store.getState().sessions["review-session-2"].summary?.mode).toBe("review");
   });

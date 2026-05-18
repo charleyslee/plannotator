@@ -21,6 +21,8 @@ const requiredScenarioIds: ScenarioId[] = [
   "cli-annotate-html",
   "cli-annotate-url",
   "cli-archive",
+  "cli-setup-goal-interview",
+  "cli-setup-goal-facts",
 ];
 
 describe("agent simulator scenarios", () => {
@@ -34,7 +36,7 @@ describe("agent simulator scenarios", () => {
     for (const scenario of scenarioDefinitions) {
       expect(scenario.title).not.toBe("");
       expect(["hook", "plugin", "cli"]).toContain(scenario.kind);
-      expect(["plan", "review", "annotate", "archive"]).toContain(scenario.expectedSessionMode);
+      expect(["plan", "review", "annotate", "archive", "goal-setup"]).toContain(scenario.expectedSessionMode);
     }
   });
 

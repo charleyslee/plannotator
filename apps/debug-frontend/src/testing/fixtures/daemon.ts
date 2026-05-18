@@ -56,7 +56,7 @@ function sessionLabel(mode: ShellSessionMode): string {
       return "Annotate docs/runtime.md";
     case "archive":
       return "Plan decision archive";
-    case "setup-goal":
+    case "goal-setup":
       return "Setup goal interview";
     default:
       return `Unsupported ${mode}`;
@@ -70,7 +70,7 @@ export const sessionListFixture: ShellSessionListResponse = {
     sessionSummary("review", 2),
     sessionSummary("annotate", 3),
     sessionSummary("archive", 4),
-    sessionSummary("setup-goal", 5),
+    sessionSummary("goal-setup", 5),
   ],
 };
 
@@ -90,7 +90,7 @@ export const sessionBootstraps = {
   review: sessionBootstrap("review", 2),
   annotate: sessionBootstrap("annotate", 3),
   archive: sessionBootstrap("archive", 4),
-  "setup-goal": sessionBootstrap("setup-goal", 5),
+  "goal-setup": sessionBootstrap("goal-setup", 5),
   unsupported: sessionBootstrap("unknown-mode", 6),
 } as const;
 

@@ -39,8 +39,8 @@ const registry: Record<string, SessionViewDefinition> = {
     title: "Archive",
     component: ArchiveSessionView,
   },
-  "setup-goal": {
-    mode: "setup-goal",
+  "goal-setup": {
+    mode: "goal-setup",
     title: "Setup goal",
     component: SetupGoalSessionView,
   },

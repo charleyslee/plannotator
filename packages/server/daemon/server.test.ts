@@ -715,7 +715,7 @@ describe("daemon HTTP router", () => {
     expect(html.indexOf("window.__PLANNOTATOR_API_BASE__")).toBeLessThan(html.indexOf("<body>"));
   });
 
-  test.each(["plan", "review", "annotate", "archive", "setup-goal"] as const)(
+  test.each(["plan", "review", "annotate", "archive", "goal-setup"] as const)(
     "serves the same frontend shell for %s session pages",
     async (mode) => {
       const store = new DaemonSessionStore({ now: () => 1_000 });
@@ -792,7 +792,7 @@ describe("daemon HTTP router", () => {
     expect(body.apiBase).toBe("/s/s1/api");
     expect(body.capabilities.protocol).toBe(PLANNOTATOR_DAEMON_PROTOCOL);
     expect(body.supportedSessionViews).toContain("plan");
-    expect(body.supportedSessionViews).toContain("setup-goal");
+    expect(body.supportedSessionViews).toContain("goal-setup");
   });
 
   test("returns a daemon error for missing session bootstrap", async () => {

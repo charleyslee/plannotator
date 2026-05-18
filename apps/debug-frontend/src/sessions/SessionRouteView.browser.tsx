@@ -16,7 +16,7 @@ describe("SessionRouteView browser rendering", () => {
     ["review", "Code review"],
     ["annotate", "Annotate"],
     ["archive", "Archive"],
-    ["setup-goal", "Setup goal"],
+    ["goal-setup", "Setup goal"],
   ] as const)("renders %s session shell", async (mode, heading) => {
     const rendered = await renderBrowser(
       <SessionRouteView result={{ ok: true, data: sessionBootstraps[mode] }} />,

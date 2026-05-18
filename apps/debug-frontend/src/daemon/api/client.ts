@@ -58,7 +58,9 @@ export type ShellSessionAction =
   | "annotate-approve"
   | "annotate-feedback"
   | "annotate-exit"
-  | "archive-done";
+  | "archive-done"
+  | "goal-setup-submit"
+  | "goal-setup-exit";
 
 function joinUrl(baseUrl: string | undefined, path: string): string {
   if (!baseUrl) return path;
@@ -291,6 +293,10 @@ function requestForAction(action: ShellSessionAction): { path: string; init: Req
       return { path: "/api/exit", init: jsonPost({}) };
     case "archive-done":
       return { path: "/api/done", init: jsonPost({}) };
+    case "goal-setup-submit":
+      return { path: "/api/goal-setup/submit", init: jsonPost({ answers: [], facts: [] }) };
+    case "goal-setup-exit":
+      return { path: "/api/exit", init: jsonPost({}) };
   }
 }
 

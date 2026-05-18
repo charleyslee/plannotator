@@ -269,7 +269,7 @@ export async function createGoalSetupSession(
 ): Promise<GoalSetupSession> {
   const { cwd = process.cwd(), bundle, htmlContent, origin = "claude-code" } = options;
   const wslFlag = await isWSL();
-  const repoInfo = await getRepoInfo();
+  const repoInfo = await getRepoInfo(cwd);
   const gitUser = detectGitUser(cwd);
 
   let settled = false;

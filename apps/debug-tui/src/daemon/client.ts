@@ -88,7 +88,7 @@ export function authTokenFromBrowserUrl(browserUrl: string | undefined): string 
 export async function completeSession(
   fetchImpl: typeof fetch,
   sessionUrl: string,
-  completion: "plan" | "review" | "annotate" | "archive",
+  completion: "plan" | "review" | "annotate" | "archive" | "goal-setup",
 ): Promise<unknown> {
   switch (completion) {
     case "plan":
@@ -103,6 +103,12 @@ export async function completeSession(
       return readJson(fetchImpl, `${sessionUrl}/api/approve`, postJson({}));
     case "archive":
       return readJson(fetchImpl, `${sessionUrl}/api/done`, postJson({}));
+    case "goal-setup":
+      return readJson(
+        fetchImpl,
+        `${sessionUrl}/api/goal-setup/submit`,
+        postJson({ answers: [], facts: [] }),
+      );
   }
 }
 

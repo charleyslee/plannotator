@@ -16,7 +16,7 @@ export function SetupGoalSessionView({ bootstrap }: SessionViewComponentProps) {
         </p>
       </header>
       <SessionFacts bootstrap={bootstrap} />
-      <ApiGroupList groups={apiGroupsForMode("setup-goal")} />
+      <ApiGroupList groups={apiGroupsForMode("goal-setup")} />
     </section>
   );
 }

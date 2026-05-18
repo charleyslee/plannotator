@@ -18,10 +18,12 @@ export type ScenarioId =
   | "cli-annotate-gate"
   | "cli-annotate-html"
   | "cli-annotate-url"
-  | "cli-archive";
+  | "cli-archive"
+  | "cli-setup-goal-interview"
+  | "cli-setup-goal-facts";
 
 export type ScenarioKind = "hook" | "plugin" | "cli";
-export type CompletionMode = "plan" | "review" | "annotate" | "archive";
+export type CompletionMode = "plan" | "review" | "annotate" | "archive" | "goal-setup";
 
 export interface ScenarioFixture {
   cwd: string;

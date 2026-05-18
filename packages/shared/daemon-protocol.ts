@@ -30,7 +30,7 @@ export const PLANNOTATOR_DAEMON_SESSION_VIEWS = [
   "review",
   "annotate",
   "archive",
-  "setup-goal",
+  "goal-setup",
 ] as const;
 
 export type DaemonFeature = (typeof PLANNOTATOR_DAEMON_FEATURES)[number];

@@ -89,7 +89,7 @@ export const sessionApiGroups: Record<string, SessionApiGroup[]> = {
       ["POST", "/api/done"],
     ]),
   ],
-  "setup-goal": [
+  "goal-setup": [
     {
       id: "setup-goal-contract",
       title: "Setup-goal backend contract",

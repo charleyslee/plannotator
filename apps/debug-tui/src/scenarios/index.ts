@@ -374,6 +374,44 @@ export const scenarioDefinitions: ScenarioDefinition[] = [
     },
     buildCommand: (repoRoot, fixture) => command(repoRoot, fixture, ["archive"]),
   },
+  {
+    id: "cli-setup-goal-interview",
+    title: "CLI setup-goal interview",
+    kind: "cli",
+    agent: "direct-cli",
+    expectedSessionMode: "goal-setup",
+    description: "Runs plannotator setup-goal interview with a question bundle fixture.",
+    async buildFixture() {
+      const fixture = await createWorkspaceFixture("cli-setup-goal-interview");
+      return {
+        cwd: fixture.root,
+        completion: "goal-setup",
+        cleanup: fixture.cleanup,
+        env: { HOME: fixture.root },
+      };
+    },
+    buildCommand: (repoRoot, fixture) =>
+      command(repoRoot, fixture, ["setup-goal", "interview", "goals/interview.json", "--json"]),
+  },
+  {
+    id: "cli-setup-goal-facts",
+    title: "CLI setup-goal facts",
+    kind: "cli",
+    agent: "direct-cli",
+    expectedSessionMode: "goal-setup",
+    description: "Runs plannotator setup-goal facts with a facts review bundle fixture.",
+    async buildFixture() {
+      const fixture = await createWorkspaceFixture("cli-setup-goal-facts");
+      return {
+        cwd: fixture.root,
+        completion: "goal-setup",
+        cleanup: fixture.cleanup,
+        env: { HOME: fixture.root },
+      };
+    },
+    buildCommand: (repoRoot, fixture) =>
+      command(repoRoot, fixture, ["setup-goal", "facts", "goals/facts.json", "--json"]),
+  },
 ];
 
 export function getScenario(id: ScenarioId): ScenarioDefinition {
