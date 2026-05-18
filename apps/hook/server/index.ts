@@ -1100,7 +1100,7 @@ if (args[0] === "sessions") {
   });
 
   if (outcome?.result) {
-    const result = outcome.result as { result?: unknown; exit?: boolean };
+    const result = outcome.result as import("@plannotator/shared/plugin-protocol").PluginGoalSetupResult;
     if (result.exit) {
       console.log(JSON.stringify({ decision: "dismissed", stage }));
     } else if (result.result) {
