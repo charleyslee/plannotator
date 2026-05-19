@@ -565,7 +565,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         url,
         project,
         cwd,
-        label: `plugin-archive-${request.origin}-${project}`,
+        label: branch ? `plugin-archive-${request.origin}-${project}-${branch}` : `plugin-archive-${request.origin}-${project}`,
         origin: request.origin,
         ttlMs,
         handleRequest: session.handleRequest,
@@ -602,8 +602,8 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         project,
         cwd,
         label: input.folderPath
-          ? `plugin-annotate-${request.origin}-${basename(input.folderPath)}`
-          : `plugin-annotate-${request.origin}-${input.mode === "annotate-last" ? "last" : basename(input.filePath)}`,
+          ? `plugin-annotate-${request.origin}-${basename(input.folderPath)}${branch ? `-${branch}` : ""}`
+          : `plugin-annotate-${request.origin}-${input.mode === "annotate-last" ? "last" : basename(input.filePath)}${branch ? `-${branch}` : ""}`,
         origin: request.origin,
         ttlMs,
         handleRequest: session.handleRequest,
@@ -691,7 +691,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         url,
         project,
         cwd,
-        label: `goal-setup-${bundle.stage}-${request.goalSlug || project}`,
+        label: branch ? `goal-setup-${bundle.stage}-${request.goalSlug || project}-${branch}` : `goal-setup-${bundle.stage}-${request.goalSlug || project}`,
         origin: request.origin,
         ttlMs,
         htmlContent: session.htmlContent,

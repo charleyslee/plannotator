@@ -128,7 +128,9 @@ export function addProject(
     const parentName = wt.parentCwd.split("/").filter(Boolean).pop() ?? "unknown";
     const parentEntries = readProjectRegistry(options);
     if (!parentEntries.some((e) => e.cwd === wt.parentCwd)) {
-      registerProject(parentName, wt.parentCwd, options);
+      const now = new Date().toISOString();
+      parentEntries.push({ name: parentName, cwd: wt.parentCwd, lastSeen: now });
+      writeProjectRegistry(parentEntries, options);
     }
 
     const entries = readProjectRegistry(options);
