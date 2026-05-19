@@ -132,7 +132,7 @@ function getFileTabTitle(filePath: string): string {
   return filePath.split('/').pop() ?? filePath;
 }
 
-const ReviewApp: React.FC = () => {
+const ReviewApp: React.FC<{ __embedded?: boolean }> = ({ __embedded }) => {
   const fetch = useSessionFetch();
   const { resolvedMode } = useTheme();
   const [diffData, setDiffData] = useState<DiffData | null>(null);
@@ -1753,22 +1753,20 @@ const ReviewApp: React.FC = () => {
   ]);
 
   if (isLoading) {
-    return (
-      <ThemeProvider defaultTheme="dark">
-        <div className="h-screen flex items-center justify-center bg-background">
-          <div className="text-muted-foreground text-sm">Loading diff...</div>
-        </div>
-      </ThemeProvider>
+    const skeleton = (
+      <div className={`${__embedded ? 'h-full' : 'h-screen'} flex items-center justify-center bg-background`}>
+        <div className="text-muted-foreground text-sm">Loading diff...</div>
+      </div>
     );
+    if (__embedded) return skeleton;
+    return <ThemeProvider defaultTheme="dark">{skeleton}</ThemeProvider>;
   }
 
-  return (
-    <ThemeProvider defaultTheme="dark">
-      <TooltipProvider delayDuration={200} skipDelayDuration={100}>
+  const innerContent = (
       <ReviewStateProvider value={reviewStateValue}>
       <JobLogsProvider value={jobLogsValue}>
       {isSwitchingPRScope && <PRSwitchOverlay />}
-      <div className="h-screen flex flex-col bg-background overflow-hidden">
+      <div className={`${__embedded ? 'h-full' : 'h-screen'} flex flex-col bg-background overflow-hidden`}>
         {/* Header */}
         <header className="py-1 flex items-center justify-between px-2 md:px-4 border-b border-border/50 bg-card/50 backdrop-blur-xl z-50">
           <div className="min-w-0 flex items-center gap-2 md:gap-3 -ml-1.5 md:-ml-3">
@@ -2486,21 +2484,36 @@ const ReviewApp: React.FC = () => {
         </button>
       )}
 
-    <Toaster
-      position="bottom-center"
-      toastOptions={{
-        style: {
-          '--normal-bg': 'var(--card)',
-          '--normal-border': 'var(--border)',
-          '--normal-text': 'var(--foreground)',
-        } as React.CSSProperties,
-      }}
-    />
+    {!__embedded && (
+      <Toaster
+        position="bottom-center"
+        toastOptions={{
+          style: {
+            '--normal-bg': 'var(--card)',
+            '--normal-border': 'var(--border)',
+            '--normal-text': 'var(--foreground)',
+          } as React.CSSProperties,
+        }}
+      />
+    )}
     </JobLogsProvider>
     </ReviewStateProvider>
-    </TooltipProvider>
+  );
+
+  if (__embedded) return innerContent;
+
+  return (
+    <ThemeProvider defaultTheme="dark">
+      <TooltipProvider delayDuration={200} skipDelayDuration={100}>
+        {innerContent}
+      </TooltipProvider>
     </ThemeProvider>
   );
 };
 
 export default ReviewApp;
+
+export function ReviewAppEmbedded() {
+  return <ReviewApp __embedded />;
+}
+
