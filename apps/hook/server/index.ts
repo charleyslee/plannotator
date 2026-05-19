@@ -52,15 +52,6 @@
  *   PLANNOTATOR_PORT   - Fixed port to use (default: random locally, 19432 for remote)
  */
 
-import {
-  handleServerReady,
-} from "@plannotator/server";
-import {
-  handleReviewServerReady,
-} from "@plannotator/server/review";
-import {
-  handleAnnotateServerReady,
-} from "@plannotator/server/annotate";
 import { loadConfig, resolveUseJina } from "@plannotator/shared/config";
 import { parseReviewArgs } from "@plannotator/shared/review-args";
 import {
@@ -652,19 +643,6 @@ function registerDaemonSessionInterruptCleanup(
   };
 }
 
-async function withProcessCwd<T>(cwd: string | undefined, fn: () => Promise<T>): Promise<T> {
-  if (!cwd) return fn();
-  const original = process.cwd();
-  const target = path.resolve(cwd);
-  if (target === original) return fn();
-  process.chdir(target);
-  try {
-    return await fn();
-  } finally {
-    process.chdir(original);
-  }
-}
-
 async function runDaemonSessionRequest(request: PluginRequest, options: { pluginError?: boolean } = {}): Promise<{
   result: PluginActionResult;
   session: PluginSessionInfo;
@@ -691,12 +669,10 @@ async function runDaemonSessionRequest(request: PluginRequest, options: { plugin
     });
 
     const sessionUrl = new URL(created.session.url);
-    const sessionPort = Number(sessionUrl.port);
-    const browserSessionUrl = createDaemonBrowserAuthUrl(daemon.state, sessionUrl.pathname);
     const session: PluginSessionInfo = {
       mode: created.session.mode,
       url: created.session.url,
-      port: sessionPort,
+      port: Number(sessionUrl.port),
       isRemote: daemon.state.isRemote,
     };
     if (created.session.remoteShare) {
@@ -707,16 +683,6 @@ async function runDaemonSessionRequest(request: PluginRequest, options: { plugin
     if (options.pluginError) {
       emitPluginSessionReady(session);
     }
-
-    await withProcessCwd(request.cwd, async () => {
-      if (request.action === "review") {
-        await handleReviewServerReady(browserSessionUrl, daemon.state.isRemote, sessionPort);
-      } else if (request.action === "annotate" || request.action === "annotate-last") {
-        await handleAnnotateServerReady(browserSessionUrl, daemon.state.isRemote, sessionPort);
-      } else {
-        await handleServerReady(browserSessionUrl, daemon.state.isRemote, sessionPort);
-      }
-    });
 
     const completed = await daemon.waitForResult<PluginActionResult>(created.session.id);
     if (completed.ok !== true) {

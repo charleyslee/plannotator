@@ -20,6 +20,8 @@ import { addProject, listProjects, removeProject } from "./project-registry";
 const RESULT_DELETE_GRACE_MS = 2_000;
 const DAEMON_AUTH_COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
+export type SessionBrowserAction = "opened" | "notified";
+
 export interface DaemonServerOptions {
   state: DaemonState;
   shellHtmlContent: string;
@@ -28,6 +30,10 @@ export interface DaemonServerOptions {
     request: DaemonCreateSessionRequest,
     context: DaemonFetchContext,
   ) => DaemonSessionRecord | Promise<DaemonSessionRecord>;
+  presentSession?: (
+    record: DaemonSessionRecord,
+    eventHub: DaemonEventHub,
+  ) => Promise<SessionBrowserAction>;
   onShutdown?: () => void | Promise<void>;
 }
 
@@ -385,7 +391,14 @@ export function createDaemonFetchHandler(options: DaemonServerOptions): DaemonFe
         try {
           requestContext?.disableIdleTimeout?.();
           const record = await options.createSession(body, context);
-          return json({ ok: true, session: store.summary(record, { includeRemoteShare: true }) }, { status: 201 });
+          const browserAction = options.presentSession
+            ? await options.presentSession(record, eventHub).catch((): SessionBrowserAction => "opened")
+            : undefined;
+          return json({
+            ok: true,
+            session: store.summary(record, { includeRemoteShare: true }),
+            ...(browserAction && { browserAction }),
+          }, { status: 201 });
         } catch (err) {
           const message = err instanceof Error ? err.message : "Failed to create session.";
           eventHub.publishDaemonEvent({

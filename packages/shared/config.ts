@@ -124,6 +124,12 @@ export interface PlannotatorConfig {
    * Read by the `improve-context` PreToolUse handler. Default: false.
    */
   pfmReminder?: boolean;
+  /**
+   * When true, the daemon always opens a new browser tab per session and the
+   * frontend uses the full-screen CompletionOverlay with auto-close instead of
+   * the inline CompletionBanner. Default: false (smart single-app mode).
+   */
+  legacyTabMode?: boolean;
 }
 
 const CONFIG_DIR = join(homedir(), ".plannotator");
