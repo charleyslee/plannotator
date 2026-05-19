@@ -8,7 +8,7 @@ import { AddProjectDialog } from "../components/landing/AddProjectDialog";
 import { SessionSurface } from "../components/sessions/SessionSurface";
 import { useDaemonEvents } from "../daemon/events/use-daemon-events";
 import { projectStore } from "../stores/project-store";
-import { useAppStore, appStore } from "../stores/app-store";
+import { useAppStore } from "../stores/app-store";
 
 export function Layout() {
   const addProjectOpen = useAppStore((s) => s.addProjectOpen);
@@ -23,12 +23,11 @@ export function Layout() {
     void projectStore.getState().fetchProjects();
   }, []);
 
+  // Derive visibility from the route synchronously — no async effect needed.
+  // activeSessionId tells us which session surface to show.
+  // isOnSession tells us if we're on a session route at all (controls Outlet visibility).
   const isOnSession = !!matchRoute({ to: "/s/$sessionId", fuzzy: true });
-  useEffect(() => {
-    if (!isOnSession && activeSessionId !== null) {
-      appStore.getState().deactivateSession();
-    }
-  }, [isOnSession, activeSessionId]);
+  const showLanding = !isOnSession;
 
   const openAddProject = useCallback(() => setAddProjectOpen(true), [setAddProjectOpen]);
 
@@ -40,25 +39,23 @@ export function Layout() {
       >
         <AppSidebar onAddProject={openAddProject} />
         <main className="relative flex-1 overflow-hidden">
-          {/* Landing page — visible when no session is active */}
           <div
             className="absolute inset-0"
             style={{
-              visibility: activeSessionId === null ? "visible" : "hidden",
-              zIndex: activeSessionId === null ? 1 : 0,
+              visibility: showLanding ? "visible" : "hidden",
+              zIndex: showLanding ? 1 : 0,
             }}
           >
             <Outlet />
           </div>
 
-          {/* Each visited session stays alive — hidden via visibility, not display:none */}
           {Object.values(visitedSessions).map(({ sessionId, bootstrap }) => (
             <div
               key={sessionId}
               className="absolute inset-0"
               style={{
-                visibility: sessionId === activeSessionId ? "visible" : "hidden",
-                zIndex: sessionId === activeSessionId ? 1 : 0,
+                visibility: sessionId === activeSessionId && isOnSession ? "visible" : "hidden",
+                zIndex: sessionId === activeSessionId && isOnSession ? 1 : 0,
               }}
             >
               <SessionSurface bootstrap={bootstrap} />
