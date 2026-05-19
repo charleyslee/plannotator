@@ -1,11 +1,12 @@
 /**
- * Auto-save code review annotation drafts to the server.
+ * Auto-save and auto-restore code review annotation drafts.
  *
- * Similar to useAnnotationDraft but stores CodeAnnotation[] directly
- * (they're already compact — no tuple conversion needed).
+ * Drafts are keyed by a content hash of the diff on the server side.
+ * Same diff = same draft. On mount, if a draft exists, it is restored
+ * silently — no dialog, no user action needed.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { CodeAnnotation } from '../types';
 import { useSessionFetch } from './useSessionFetch';
 
@@ -17,28 +18,12 @@ interface DraftData {
   ts: number;
 }
 
-function formatTimeAgo(ts: number): string {
-  const seconds = Math.floor((Date.now() - ts) / 1000);
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
-  const days = Math.floor(hours / 24);
-  return `${days} day${days !== 1 ? 's' : ''} ago`;
-}
-
 interface UseCodeAnnotationDraftOptions {
   annotations: CodeAnnotation[];
   viewedFiles: Set<string>;
   isApiMode: boolean;
   submitted: boolean;
-}
-
-interface UseCodeAnnotationDraftResult {
-  draftBanner: { count: number; viewedCount: number; timeAgo: string } | null;
-  restoreDraft: () => { annotations: CodeAnnotation[]; viewedFiles: string[] };
-  dismissDraft: () => void;
+  onRestore: (annotations: CodeAnnotation[], viewedFiles: string[]) => void;
 }
 
 export function useCodeAnnotationDraft({
@@ -46,16 +31,16 @@ export function useCodeAnnotationDraft({
   viewedFiles,
   isApiMode,
   submitted,
-}: UseCodeAnnotationDraftOptions): UseCodeAnnotationDraftResult {
+  onRestore,
+}: UseCodeAnnotationDraftOptions): void {
   const fetch = useSessionFetch();
-  const [draftBanner, setDraftBanner] = useState<{ count: number; viewedCount: number; timeAgo: string } | null>(null);
-  const draftDataRef = useRef<DraftData | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasMountedRef = useRef(false);
+  const restoredRef = useRef(false);
 
-  // Load draft on mount
+  // Load and auto-restore draft on mount
   useEffect(() => {
-    if (!isApiMode) return;
+    if (!isApiMode || restoredRef.current) return;
 
     fetch('/api/draft')
       .then(res => {
@@ -63,15 +48,11 @@ export function useCodeAnnotationDraft({
         return res.json();
       })
       .then((data: DraftData | null) => {
-        const annotationCount = Array.isArray(data?.codeAnnotations) ? data.codeAnnotations.length : 0;
-        const viewedCount = Array.isArray(data?.viewedFiles) ? data.viewedFiles.length : 0;
-        if (annotationCount > 0 || viewedCount > 0) {
-          draftDataRef.current = data;
-          setDraftBanner({
-            count: annotationCount,
-            viewedCount,
-            timeAgo: formatTimeAgo(data?.ts || 0),
-          });
+        const restoredAnnotations = Array.isArray(data?.codeAnnotations) ? data.codeAnnotations : [];
+        const restoredViewed = Array.isArray(data?.viewedFiles) ? data.viewedFiles : [];
+        if (restoredAnnotations.length > 0 || restoredViewed.length > 0) {
+          restoredRef.current = true;
+          onRestore(restoredAnnotations, restoredViewed);
         }
         hasMountedRef.current = true;
       })
@@ -99,31 +80,11 @@ export function useCodeAnnotationDraft({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      }).catch(() => {
-        // Silent failure
-      });
+      }).catch(() => {});
     }, DEBOUNCE_MS);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [annotations, viewedFiles, isApiMode, submitted]);
-
-  const restoreDraft = useCallback(() => {
-    const data = draftDataRef.current;
-    setDraftBanner(null);
-    draftDataRef.current = null;
-    return {
-      annotations: data?.codeAnnotations ?? [],
-      viewedFiles: data?.viewedFiles ?? [],
-    };
-  }, []);
-
-  const dismissDraft = useCallback(() => {
-    setDraftBanner(null);
-    draftDataRef.current = null;
-    fetch('/api/draft', { method: 'DELETE' }).catch(() => {});
-  }, []);
-
-  return { draftBanner, restoreDraft, dismissDraft };
 }

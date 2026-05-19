@@ -397,19 +397,18 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
   const allAnnotationsRef = useRef(allAnnotations);
   allAnnotationsRef.current = allAnnotations;
 
-  // Auto-save code annotation drafts
-  const { draftBanner, restoreDraft, dismissDraft } = useCodeAnnotationDraft({
+  // Auto-save and auto-restore code annotation drafts
+  useCodeAnnotationDraft({
     annotations: allAnnotations,
     viewedFiles,
     isApiMode: !!origin,
     submitted: !!submitted,
+    onRestore: useCallback((restoredAnnotations, restoredViewed) => {
+      if (restoredAnnotations.length > 0) setAnnotations(restoredAnnotations);
+      if (restoredViewed.length > 0) setViewedFiles(new Set(restoredViewed));
+      toast(`Restored ${restoredAnnotations.length} annotation${restoredAnnotations.length !== 1 ? 's' : ''}${restoredViewed.length > 0 ? ` and ${restoredViewed.length} viewed file${restoredViewed.length !== 1 ? 's' : ''}` : ''}`);
+    }, []),
   });
-
-  const handleRestoreDraft = useCallback(() => {
-    const restored = restoreDraft();
-    if (restored.annotations.length > 0) setAnnotations(restored.annotations);
-    if (restored.viewedFiles.length > 0) setViewedFiles(new Set(restored.viewedFiles));
-  }, [restoreDraft]);
 
   // AI Chat
   const [aiAvailable, setAiAvailable] = useState(false);
@@ -2174,21 +2173,6 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
 
           {/* Center dock area */}
           <div className="flex-1 min-w-0 overflow-hidden relative">
-            <ConfirmDialog
-              isOpen={!!draftBanner}
-              onClose={dismissDraft}
-              onConfirm={handleRestoreDraft}
-              title="Draft Recovered"
-              message={draftBanner ? (() => {
-                const parts: string[] = [];
-                if (draftBanner.count > 0) parts.push(`${draftBanner.count} annotation${draftBanner.count !== 1 ? 's' : ''}`);
-                if (draftBanner.viewedCount > 0) parts.push(`${draftBanner.viewedCount} viewed file${draftBanner.viewedCount !== 1 ? 's' : ''}`);
-                return `Found ${parts.join(' and ')} from ${draftBanner.timeAgo}. Would you like to restore them?`;
-              })() : ''}
-              confirmText="Restore"
-              cancelText="Dismiss"
-              showCancel
-            />
             {files.length > 0 ? (
               <DockviewReact
                 className={`h-full ${resolvedMode === 'light' ? 'dockview-theme-light' : 'dockview-theme-dark'}`}
