@@ -75,6 +75,7 @@
         "@fontsource-variable/geist-mono": "^5.2.7",
         "@fontsource-variable/inter": "^5.2.8",
         "@plannotator/code-review": "workspace:*",
+        "@plannotator/plan-review": "workspace:*",
         "@plannotator/shared": "workspace:*",
         "@plannotator/ui": "workspace:*",
         "@radix-ui/react-collapsible": "^1.1.12",
