@@ -23,6 +23,7 @@ export interface DaemonEventStreamOptions {
 
 export interface DaemonEventStreamController {
   stop(): void;
+  reportActiveSession(sessionId: string | null): void;
 }
 
 const DAEMON_EVENT_TYPES = [
@@ -79,6 +80,17 @@ export function connectDaemonEvents(
     });
   };
 
+  let currentActiveSessionId: string | null = null;
+
+  const sendClientState = () => {
+    client.sendClientState(!document.hidden, currentActiveSessionId);
+  };
+
+  const handleVisibilityChange = () => {
+    if (!stopped) sendClientState();
+  };
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+
   const unsubscribe = client.subscribeDaemon(
     (message) => {
       if (stopped) return;
@@ -88,7 +100,10 @@ export function connectDaemonEvents(
     (state) => {
       if (stopped) return;
       options.onState(state);
-      if (state === "open") stopPolling();
+      if (state === "open") {
+        stopPolling();
+        sendClientState();
+      }
       if (state === "error" || state === "closed") startPolling();
     },
     (message) => {
@@ -96,10 +111,16 @@ export function connectDaemonEvents(
     },
   );
 
-  return { stop };
+  return { stop, reportActiveSession };
+
+  function reportActiveSession(sessionId: string | null): void {
+    currentActiveSessionId = sessionId;
+    sendClientState();
+  }
 
   function stop() {
     stopped = true;
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
     stopPolling();
     unsubscribe();
   }

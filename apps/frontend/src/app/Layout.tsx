@@ -18,13 +18,17 @@ function LayoutContent() {
   const matchRoute = useMatchRoute();
   const { open: sidebarOpen } = useSidebar();
 
-  useDaemonEvents();
+  const { reportActiveSession } = useDaemonEvents();
 
   useEffect(() => {
     void projectStore.getState().fetchProjects();
   }, []);
 
   const isOnSession = !!matchRoute({ to: "/s/$sessionId", fuzzy: true });
+
+  useEffect(() => {
+    reportActiveSession(isOnSession ? activeSessionId : null);
+  }, [reportActiveSession, isOnSession, activeSessionId]);
   const showLanding = !isOnSession;
 
   const openAddProject = useCallback(() => setAddProjectOpen(true), [setAddProjectOpen]);

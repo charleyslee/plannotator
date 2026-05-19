@@ -256,6 +256,11 @@ export type DaemonWebSocketClientMessage =
   | {
       type: "ping";
       requestId?: string;
+    }
+  | {
+      type: "client-state";
+      visible: boolean;
+      activeSessionId: string | null;
     };
 
 export type DaemonWebSocketServerMessage =
@@ -370,6 +375,11 @@ export function parseDaemonWebSocketClientMessage(
     };
   }
   if (value.type === "ping") return { type: "ping", ...(requestId && { requestId }) };
+  if (value.type === "client-state") {
+    if (typeof value.visible !== "boolean") return null;
+    const activeSessionId = isString(value.activeSessionId) ? value.activeSessionId : null;
+    return { type: "client-state", visible: value.visible, activeSessionId };
+  }
   return null;
 }
 
