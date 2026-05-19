@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { Outlet, useMatchRoute } from "@tanstack/react-router";
 import { Toaster } from "sonner";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "../components/sidebar/AppSidebar";
 import { AddProjectDialog } from "../components/landing/AddProjectDialog";
@@ -52,7 +52,7 @@ export function Layout() {
           {Object.values(visitedSessions).map(({ sessionId, bootstrap }) => (
             <div
               key={sessionId}
-              className="absolute inset-0 overflow-hidden rounded-tl-xl border-l border-border/50"
+              className="absolute inset-0 overflow-hidden peer-data-[state=expanded]:rounded-tl-xl peer-data-[state=expanded]:border-l peer-data-[state=expanded]:border-border/50"
               style={{
                 visibility: sessionId === activeSessionId && isOnSession ? "visible" : "hidden",
                 zIndex: sessionId === activeSessionId && isOnSession ? 1 : 0,
