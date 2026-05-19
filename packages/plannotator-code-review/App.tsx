@@ -135,6 +135,11 @@ function getFileTabTitle(filePath: string): string {
 const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({ __embedded, headerLeft }) => {
   const fetch = useSessionFetch();
   const { resolvedMode } = useTheme();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const isVisible = useCallback(() => {
+    if (!rootRef.current) return true;
+    return getComputedStyle(rootRef.current).visibility !== 'hidden';
+  }, []);
   const [diffData, setDiffData] = useState<DiffData | null>(null);
   const [files, setFiles] = useState<DiffFile[]>([]);
   const [activeFileIndex, setActiveFileIndex] = useState(0);
@@ -635,6 +640,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     const handler = (e: KeyboardEvent) => {
+      if (!isVisible()) return;
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'T' || e.key === 't')) {
         e.preventDefault();
         setTourDialogJobId(prev => (prev === DEMO_TOUR_ID ? null : DEMO_TOUR_ID));
@@ -701,6 +707,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isVisible()) return;
       // Cmd/Ctrl+F to focus file search when diff files are available.
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f' && !isTypingTarget(e.target)) {
         if (hasSearchableFiles) {
@@ -1074,6 +1081,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (!isVisible()) return;
       if (e.metaKey || e.ctrlKey || e.shiftKey || isTypingTarget(e.target)) return;
       if (!isDiffPanelActive) return;
       const filePath = files[activeFileIndex]?.path;
@@ -1676,6 +1684,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
     const DOUBLE_TAP_WINDOW = 300;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isVisible()) return;
       if (e.key !== 'Alt' || e.repeat) return;
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
@@ -1708,6 +1717,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
   // Cmd/Ctrl+Enter keyboard shortcut to approve or send feedback
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isVisible()) return;
       if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey)) return;
 
       // If the platform post dialog is open, Cmd+Enter submits it
@@ -1772,7 +1782,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
       <ReviewStateProvider value={reviewStateValue}>
       <JobLogsProvider value={jobLogsValue}>
       {isSwitchingPRScope && <PRSwitchOverlay />}
-      <div className={`${__embedded ? 'h-full' : 'h-screen'} flex flex-col bg-background overflow-hidden`}>
+      <div ref={rootRef} className={`${__embedded ? 'h-full' : 'h-screen'} flex flex-col bg-background overflow-hidden`}>
         {/* Header */}
         <header className="py-1 flex items-center justify-between px-2 md:px-4 border-b border-border/50 bg-card/50 backdrop-blur-xl z-50">
           <div className={`min-w-0 flex items-center gap-2 md:gap-3 ${headerLeft ? '' : '-ml-1.5 md:-ml-3'}`}>

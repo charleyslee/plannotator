@@ -99,6 +99,11 @@ type NoteAutoSaveResults = {
 
 const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({ __embedded, headerLeft }) => {
   const fetch = useSessionFetch();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const isVisible = useCallback(() => {
+    if (!rootRef.current) return true;
+    return getComputedStyle(rootRef.current).visibility !== 'hidden';
+  }, []);
   const [markdown, setMarkdown] = useState(DEMO_PLAN_CONTENT);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [codeAnnotations, setCodeAnnotations] = useState<CodeAnnotation[]>([]);
@@ -307,6 +312,7 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
   useEffect(() => {
     if (!isPlanDiffActive) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isVisible()) return;
       if (e.key === 'Escape') {
         setIsPlanDiffActive(false);
       }
@@ -1131,6 +1137,7 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
   // Global keyboard shortcuts (Cmd/Ctrl+Enter to submit)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isVisible()) return;
       // Only handle Cmd/Ctrl+Enter
       if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey)) return;
 
@@ -1509,6 +1516,7 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
   // Cmd/Ctrl+S keyboard shortcut — save to default notes app
   useEffect(() => {
     const handleSaveShortcut = (e: KeyboardEvent) => {
+      if (!isVisible()) return;
       if (e.key !== 's' || !(e.metaKey || e.ctrlKey)) return;
 
       const tag = (e.target as HTMLElement)?.tagName;
@@ -1551,6 +1559,7 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
   // Cmd/Ctrl+P keyboard shortcut — print plan
   useEffect(() => {
     const handlePrintShortcut = (e: KeyboardEvent) => {
+      if (!isVisible()) return;
       if (e.key !== 'p' || !(e.metaKey || e.ctrlKey)) return;
 
       const tag = (e.target as HTMLElement)?.tagName;
@@ -1682,7 +1691,7 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
   }
 
   const innerContent = (
-      <div data-print-region="root" className={`${__embedded ? 'h-full' : 'h-screen'} flex flex-col bg-background overflow-hidden`}>
+      <div ref={rootRef} data-print-region="root" className={`${__embedded ? 'h-full' : 'h-screen'} flex flex-col bg-background overflow-hidden`}>
         <AppHeader
           headerLeft={headerLeft}
           isApiMode={isApiMode}
