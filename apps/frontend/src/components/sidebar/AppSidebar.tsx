@@ -22,6 +22,13 @@ import { getSessionModeMeta } from "../../shared/session-meta";
 
 const MODE_ORDER = ["plan", "review", "annotate", "goal-setup", "archive"];
 
+function formatSessionLabel(label: string): string {
+  return label
+    .replace(/^plugin-(plan|review|annotate|archive)-/, "")
+    .replace(/^(claude-code|opencode|pi|plannotator-frontend)-/, "")
+    .replace(/^goal-setup-(interview|facts)-/, "");
+}
+
 interface AppSidebarProps {
   onAddProject: () => void;
 }
@@ -89,7 +96,7 @@ export function AppSidebar({ onAddProject }: AppSidebarProps) {
 
                     return (
                       <SidebarMenuItem key={session.id}>
-                        <SidebarMenuButton asChild isActive={isActive} tooltip={session.label}>
+                        <SidebarMenuButton asChild isActive={isActive} tooltip={session.label} className="pr-7">
                           <Link to="/s/$sessionId" params={{ sessionId: session.id }}>
                             <Icon
                               className={cn(
@@ -103,7 +110,7 @@ export function AppSidebar({ onAddProject }: AppSidebarProps) {
                                 isTerminal && "text-muted-foreground/60 line-through",
                               )}
                             >
-                              {session.label}
+                              {formatSessionLabel(session.label)}
                             </span>
                           </Link>
                         </SidebarMenuButton>
