@@ -732,12 +732,12 @@ diffs-container {
 }
 
 /* Toast animations */
-@keyframes fade-in {
+@keyframes cr-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-@keyframes slide-in-from-bottom-2 {
+@keyframes cr-slide-in-from-bottom-2 {
   from { transform: translateY(0.5rem) translateX(-50%); }
   to { transform: translateY(0) translateX(-50%); }
 }
@@ -749,11 +749,11 @@ diffs-container {
 }
 
 .fade-in {
-  animation-name: fade-in;
+  animation-name: cr-fade-in;
 }
 
 .slide-in-from-bottom-2 {
-  animation-name: slide-in-from-bottom-2;
+  animation-name: cr-slide-in-from-bottom-2;
 }
 
 /* AI Chat — toolbar divider, bubbles, line references, streaming cursor */
