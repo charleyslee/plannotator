@@ -5,7 +5,7 @@ import { ThemeProvider } from "@plannotator/ui/components/ThemeProvider";
 import { createAppRouter } from "./app/router";
 import "./styles.css";
 
-document.cookie = "plannotator-color-theme=diffkit; path=/; max-age=31536000; SameSite=Lax";
+document.cookie = "plannotator-color-theme=neutral; path=/; max-age=31536000; SameSite=Lax";
 document.cookie = "plannotator-theme=dark; path=/; max-age=31536000; SameSite=Lax";
 
 const rootElement = document.getElementById("root");
@@ -18,7 +18,7 @@ const router = createAppRouter();
 
 createRoot(rootElement).render(
   <StrictMode>
-    <ThemeProvider defaultColorTheme="diffkit">
+    <ThemeProvider defaultColorTheme="neutral">
       <RouterProvider router={router} />
     </ThemeProvider>
   </StrictMode>,

@@ -545,8 +545,8 @@ export const BUILT_IN_THEMES: ThemeInfo[] = [
     },
   },
   {
-    id: 'diffkit',
-    name: 'DiffKit',
+    id: 'neutral',
+    name: 'Neutral',
     builtIn: true,
     modeSupport: 'both',
     colors: {
