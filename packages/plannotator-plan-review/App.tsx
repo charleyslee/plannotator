@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
+import { useSessionFetch } from '@plannotator/ui/hooks/useSessionFetch';
 import { toast, Toaster } from 'sonner';
 import { type Origin, getAgentName } from '@plannotator/shared/agents';
 import { parseMarkdownToBlocks, exportAnnotations, exportLinkedDocAnnotations, exportEditorAnnotations, exportCodeFileAnnotations, extractFrontmatter, wrapFeedbackForAgent, Frontmatter, type LinkedDocAnnotationEntry } from '@plannotator/ui/utils/parser';
@@ -97,6 +98,7 @@ type NoteAutoSaveResults = {
 };
 
 const App: React.FC = () => {
+  const fetch = useSessionFetch();
   const [markdown, setMarkdown] = useState(DEMO_PLAN_CONTENT);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [codeAnnotations, setCodeAnnotations] = useState<CodeAnnotation[]>([]);
@@ -175,7 +177,9 @@ const App: React.FC = () => {
   const goalSetupMode = goalSetupBundle !== null;
 
   useEffect(() => {
+    const prev = document.title;
     document.title = repoInfo ? `${repoInfo.display} · Plannotator` : "Plannotator";
+    return () => { document.title = prev; };
   }, [repoInfo]);
 
   const [initialExportTab, setInitialExportTab] = useState<'share' | 'annotations' | 'notes'>();
