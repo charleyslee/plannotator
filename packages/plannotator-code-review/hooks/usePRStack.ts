@@ -1,5 +1,6 @@
 import { useState, useCallback, type RefObject } from 'react';
 import type { PRDiffScope } from '@plannotator/shared/pr-stack';
+import { useSessionFetch } from '@plannotator/ui/hooks/useSessionFetch';
 
 export interface PRSwitchResponse {
   rawPatch: string;
@@ -21,6 +22,7 @@ export interface PRStackCallbacks {
 }
 
 export function usePRStack(callbacksRef: RefObject<PRStackCallbacks | null>) {
+  const fetch = useSessionFetch();
   const [isSwitchingPRScope, setIsSwitchingPRScope] = useState(false);
 
   const handleScopeSelect = useCallback(async (scope: PRDiffScope) => {

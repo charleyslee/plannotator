@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { DEMO_TOUR, DEMO_TOUR_ID } from '../../demoTour';
 import type { CodeTourData } from '@plannotator/shared/tour';
+import { useSessionFetch } from '@plannotator/ui/hooks/useSessionFetch';
 
 export type { TourDiffAnchor, TourKeyTakeaway, TourStop, TourQAItem, CodeTourData } from '@plannotator/shared/tour';
 
@@ -14,6 +15,7 @@ export interface UseTourDataReturn {
 }
 
 export function useTourData(jobId: string): UseTourDataReturn {
+  const fetch = useSessionFetch();
   const [tour, setTour] = useState<CodeTourData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

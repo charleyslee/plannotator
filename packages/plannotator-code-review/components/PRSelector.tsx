@@ -3,6 +3,7 @@ import { SearchableSelect } from '@plannotator/ui/components/SearchableSelect';
 import { PullRequestIcon } from '@plannotator/ui/components/PullRequestIcon';
 import { getItem, setItem } from '@plannotator/ui/utils/storage';
 import type { PRListItem } from '@plannotator/shared/pr-types';
+import { useSessionFetch } from '@plannotator/ui/hooks/useSessionFetch';
 
 type PRItem = PRListItem;
 
@@ -29,6 +30,7 @@ interface PRSelectorProps {
 const HIDE_MERGED_PR_KEY = 'plannotator-pr-list-hide-merged';
 
 export function PRSelector({ mrNumberLabel, prTitle, currentNumber, onSelect, disabled }: PRSelectorProps) {
+  const fetch = useSessionFetch();
   const [prs, setPrs] = useState<PRItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetched, setFetched] = useState(false);

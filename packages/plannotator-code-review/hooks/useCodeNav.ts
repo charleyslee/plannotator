@@ -1,9 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
 import type { CodeNavRequest, CodeNavResponse } from '@plannotator/shared/code-nav';
+import { useSessionFetch } from '@plannotator/ui/hooks/useSessionFetch';
 
 export type { CodeNavRequest, CodeNavResponse };
 
 export function useCodeNav() {
+  const fetch = useSessionFetch();
   const [result, setResult] = useState<CodeNavResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeSymbol, setActiveSymbol] = useState<string | null>(null);

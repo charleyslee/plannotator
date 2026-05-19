@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { useSessionFetch } from '@plannotator/ui/hooks/useSessionFetch';
 
 const MAX_CACHE_ENTRIES = 10;
 
@@ -10,6 +11,7 @@ export interface PreviewData {
 }
 
 export function useCodeNavPreview() {
+  const fetch = useSessionFetch();
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const cacheRef = useRef(new Map<string, string>());

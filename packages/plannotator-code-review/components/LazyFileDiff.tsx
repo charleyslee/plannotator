@@ -4,6 +4,7 @@ import type { FileDiffMetadata } from '@pierre/diffs';
 import { processFile } from '@pierre/diffs';
 import type { DiffAnnotationMetadata, SelectedLineRange } from '@plannotator/ui/types';
 import type { DiffFile } from '../types';
+import { useSessionFetch } from '@plannotator/ui/hooks/useSessionFetch';
 
 interface LazyFileDiffProps {
   file: DiffFile;
@@ -35,6 +36,7 @@ export const LazyFileDiff: React.FC<LazyFileDiffProps> = ({
   selectedLines,
   renderAnnotation,
 }) => {
+  const fetch = useSessionFetch();
   const [mounted, setMounted] = useState(forceMount);
   const sentinelRef = useRef<HTMLDivElement>(null);
 

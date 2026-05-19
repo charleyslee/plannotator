@@ -78,6 +78,7 @@ import type { PRDiffScope, PRDiffScopeOption, PRStackInfo, PRStackTree } from '@
 import { altKey } from '@plannotator/ui/utils/platform';
 import { TourDialog } from './components/tour/TourDialog';
 import { DEMO_TOUR_ID } from './demoTour';
+import { useSessionFetch } from '@plannotator/ui/hooks/useSessionFetch';
 
 declare const __APP_VERSION__: string;
 
@@ -132,6 +133,7 @@ function getFileTabTitle(filePath: string): string {
 }
 
 const ReviewApp: React.FC = () => {
+  const fetch = useSessionFetch();
   const { resolvedMode } = useTheme();
   const [diffData, setDiffData] = useState<DiffData | null>(null);
   const [files, setFiles] = useState<DiffFile[]>([]);

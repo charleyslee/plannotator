@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { useSessionFetch } from '@plannotator/ui/hooks/useSessionFetch';
 
 interface UseGitAddOptions {
   activeDiffBase: string;
@@ -17,6 +18,7 @@ interface UseGitAddReturn {
 const STAGEABLE_DIFF_TYPES = new Set(['uncommitted', 'unstaged']);
 
 export function useGitAdd({ activeDiffBase, onFileViewed }: UseGitAddOptions): UseGitAddReturn {
+  const fetch = useSessionFetch();
   const [stagedFiles, setStagedFiles] = useState<Set<string>>(new Set());
   const [stagingFile, setStagingFile] = useState<string | null>(null);
   const [stageError, setStageError] = useState<string | null>(null);

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AIQuestion, AIResponse } from '@plannotator/ui/types';
 import { generateId } from '../utils/generateId';
+import { useSessionFetch } from '@plannotator/ui/hooks/useSessionFetch';
 export interface AIChatEntry {
   question: AIQuestion;
   response: AIResponse;
@@ -34,6 +35,7 @@ interface AskParams {
 }
 
 export function useAIChat({ patch, providerId, model, reasoningEffort }: UseAIChatOptions) {
+  const fetch = useSessionFetch();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<AIChatEntry[]>([]);
   const [isCreatingSession, setIsCreatingSession] = useState(false);

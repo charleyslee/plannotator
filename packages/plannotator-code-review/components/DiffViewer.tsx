@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react';
 import { FileDiff, type DiffLineAnnotation } from '@pierre/diffs/react';
 import { getSingularPatch, processFile } from '@pierre/diffs';
+import { useSessionFetch } from '@plannotator/ui/hooks/useSessionFetch';
 import { CodeAnnotation, CodeAnnotationType, SelectedLineRange, DiffAnnotationMetadata, TokenAnnotationMeta, ConventionalLabel, ConventionalDecoration } from '@plannotator/ui/types';
 import type { DiffTokenEventBaseProps } from '@pierre/diffs';
 import { usePierreTheme } from '../hooks/usePierreTheme';
@@ -211,6 +212,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   aiHistoryMessages = [],
   onCodeNavRequest,
 }) => {
+  const fetch = useSessionFetch();
   const pierreTheme = usePierreTheme({ fontFamily, fontSize });
   // containerRef must point at the actual scrolling element (the
   // OverlayScrollbars viewport), not the OverlayScrollArea host. `viewport`

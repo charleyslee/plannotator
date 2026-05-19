@@ -1,8 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { PRContext } from '@plannotator/shared/pr-types';
 import type { PRMetadata } from '@plannotator/shared/pr-types';
+import { useSessionFetch } from '@plannotator/ui/hooks/useSessionFetch';
 
 export function usePRContext(prMetadata: PRMetadata | null) {
+  const fetch = useSessionFetch();
   const [prContext, setPRContext] = useState<PRContext | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
