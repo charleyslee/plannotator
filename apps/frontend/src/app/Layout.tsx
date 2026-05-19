@@ -63,7 +63,16 @@ export function Layout() {
           ))}
         </main>
         <AddProjectDialog open={addProjectOpen} onOpenChange={setAddProjectOpen} />
-        <Toaster position="bottom-right" />
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              "--normal-bg": "var(--card)",
+              "--normal-border": "var(--border)",
+              "--normal-text": "var(--foreground)",
+            } as React.CSSProperties,
+          }}
+        />
       </SidebarProvider>
     </TooltipProvider>
   );
