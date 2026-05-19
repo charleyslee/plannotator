@@ -48,8 +48,8 @@ function cx(...classes: Array<string | false | null | undefined>): string {
   return classes.filter(Boolean).join(' ');
 }
 
-async function submitGoalSetup(payload: unknown): Promise<void> {
-  const response = await fetch('/api/goal-setup/submit', {
+async function submitGoalSetup(payload: unknown, fetchFn: (input: string, init?: RequestInit) => Promise<Response> = fetch): Promise<void> {
+  const response = await fetchFn('/api/goal-setup/submit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -255,7 +255,7 @@ const InterviewSurface = React.forwardRef<GoalSetupSurfaceHandle, {
         title: bundle.title,
         goalSlug: bundle.goalSlug,
         answers: answerList,
-      });
+      }, fetch);
       setSubmitState('submitted');
       onSubmitted?.();
     } catch (err) {
@@ -880,7 +880,7 @@ const FactsSurface = React.forwardRef<GoalSetupSurfaceHandle, {
         title: bundle.title,
         goalSlug: bundle.goalSlug,
         facts: factsToSubmit,
-      });
+      }, fetch);
       setSubmitState('submitted');
       onSubmitted?.();
     } catch (err) {
