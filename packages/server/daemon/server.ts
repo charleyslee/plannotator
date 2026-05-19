@@ -483,12 +483,22 @@ export function createDaemonFetchHandler(options: DaemonServerOptions): DaemonFe
         }
       }
 
-      const projectRoute = url.pathname.match(/^\/daemon\/projects\/([^/]+)$/);
-      if (projectRoute && req.method === "DELETE") {
-        const name = decodeURIComponent(projectRoute[1]);
-        const removed = removeProject(name);
+      if (url.pathname === "/daemon/projects" && req.method === "DELETE") {
+        if (!isJsonRequest(req)) {
+          return json(createDaemonErrorResponse("invalid-request", "Project requests must use application/json."), { status: 415 });
+        }
+        let body: { cwd?: unknown };
+        try {
+          body = await req.json() as { cwd?: unknown };
+        } catch {
+          return json(createDaemonErrorResponse("invalid-request", "Invalid project request JSON."), { status: 400 });
+        }
+        if (typeof body.cwd !== "string" || body.cwd.length === 0) {
+          return json(createDaemonErrorResponse("invalid-request", "Project removal requires a cwd path."), { status: 400 });
+        }
+        const removed = removeProject(body.cwd);
         if (!removed) {
-          return json(createDaemonErrorResponse("invalid-request", `Project not found: ${name}`), { status: 404 });
+          return json(createDaemonErrorResponse("invalid-request", `Project not found: ${body.cwd}`), { status: 404 });
         }
         return json({ ok: true });
       }

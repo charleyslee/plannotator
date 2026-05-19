@@ -489,12 +489,13 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
     const request = createRequest.request;
     const cwd = getRequestCwd(request);
     const project = (await detectProjectName(cwd)) ?? "_unknown";
-    try {
-      const tmp = tmpdir();
-      if (!cwd.startsWith(tmp)) registerProject(project, cwd);
-    } catch {}
     const id = createDaemonSessionId();
     const url = makeSessionUrl(context.endpoint.baseUrl, id);
+    const autoRegister = () => {
+      try {
+        if (!cwd.startsWith(tmpdir())) registerProject(project, cwd);
+      } catch {}
+    };
     const ttlMs = request.timeoutMs === null
       ? undefined
       : request.timeoutMs !== undefined
@@ -537,6 +538,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         dispose: registerSessionDecision(context, id, () => session.waitForDecision(), () => session.dispose()),
         remoteShare,
       });
+      autoRegister();
       return record;
     }
 
@@ -570,6 +572,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
           () => ({ opened: true }),
         ),
       });
+      autoRegister();
       return record;
     }
 
@@ -607,6 +610,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         })),
         remoteShare,
       });
+      autoRegister();
       return record;
     }
 
@@ -659,6 +663,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         dispose: registerSessionDecision(context, id, () => session.waitForDecision(), () => session.dispose()),
         remoteShare,
       });
+      autoRegister();
       return record;
     }
 
@@ -683,6 +688,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         handleRequest: session.handleRequest,
         dispose: registerSessionDecision(context, id, () => session.waitForDecision(), () => session.dispose()),
       });
+      autoRegister();
       return record;
     }
 

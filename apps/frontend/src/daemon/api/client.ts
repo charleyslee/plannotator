@@ -64,7 +64,7 @@ export interface DaemonApiClient {
     cwd: string,
     name?: string,
   ): Promise<DaemonApiResult<{ ok: true; project: ProjectEntry }>>;
-  removeProject(name: string): Promise<DaemonApiResult<{ ok: true }>>;
+  removeProject(cwd: string): Promise<DaemonApiResult<{ ok: true }>>;
   createReviewSession(cwd: string): Promise<DaemonApiResult<SessionResponse>>;
   createArchiveSession(cwd: string): Promise<DaemonApiResult<SessionResponse>>;
 }
@@ -442,12 +442,12 @@ export function createDaemonApiClient(options: DaemonApiClientOptions = {}): Dae
       );
     },
 
-    removeProject(name) {
+    removeProject(cwd) {
       return requestJson(
         fetchImpl,
-        joinUrl(options.baseUrl, `/daemon/projects/${encodeURIComponent(name)}`),
+        joinUrl(options.baseUrl, "/daemon/projects"),
         isDeleteSessionResponse,
-        { method: "DELETE" },
+        { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd }) },
       );
     },
 
