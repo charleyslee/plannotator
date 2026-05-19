@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SessionProvider } from "@plannotator/ui/hooks/useSessionFetch";
 import { ReviewAppEmbedded } from "@plannotator/code-review";
@@ -10,6 +11,13 @@ interface SessionSurfaceProps {
 }
 
 export function SessionSurface({ bootstrap }: SessionSurfaceProps) {
+  // Activity cleans up effects when hidden and re-runs them when visible.
+  // This fires on mount and on each hidden→visible transition, kicking
+  // resize observers so virtualized content (Pierre diffs, Dockview)
+  // recalculates its layout after being in display:none.
+  useEffect(() => {
+    window.dispatchEvent(new Event("resize"));
+  }, []);
   const { session } = bootstrap;
 
   if (session.mode === "review") {
