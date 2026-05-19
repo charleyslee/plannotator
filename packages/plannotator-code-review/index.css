@@ -1,4 +1,6 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:not(.light *));
 @import "dockview-react/dist/styles/dockview.css";
 
 /* Tell Tailwind where to scan for classes */

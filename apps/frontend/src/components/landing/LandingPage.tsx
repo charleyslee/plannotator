@@ -152,7 +152,7 @@ function ProjectTable({
   onSelect: (name: string) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border/60">
+    <div className="max-h-64 overflow-y-auto rounded-lg border border-border/60">
       {projects.map((project, i) => (
         <button
           key={project.name}

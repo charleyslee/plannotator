@@ -489,7 +489,10 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
     const request = createRequest.request;
     const cwd = getRequestCwd(request);
     const project = (await detectProjectName(cwd)) ?? "_unknown";
-    try { registerProject(project, cwd); } catch {}
+    try {
+      const tmp = tmpdir();
+      if (!cwd.startsWith(tmp)) registerProject(project, cwd);
+    } catch {}
     const id = createDaemonSessionId();
     const url = makeSessionUrl(context.endpoint.baseUrl, id);
     const ttlMs = request.timeoutMs === null

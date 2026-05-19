@@ -132,7 +132,7 @@ function getFileTabTitle(filePath: string): string {
   return filePath.split('/').pop() ?? filePath;
 }
 
-const ReviewApp: React.FC<{ __embedded?: boolean }> = ({ __embedded }) => {
+const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({ __embedded, headerLeft }) => {
   const fetch = useSessionFetch();
   const { resolvedMode } = useTheme();
   const [diffData, setDiffData] = useState<DiffData | null>(null);
@@ -174,6 +174,11 @@ const ReviewApp: React.FC<{ __embedded?: boolean }> = ({ __embedded }) => {
       document.documentElement.style.removeProperty('--diff-font-size-override');
     }
     document.documentElement.style.setProperty('--diffs-tab-size', String(diffTabSize));
+    return () => {
+      document.documentElement.style.removeProperty('--diff-font-override');
+      document.documentElement.style.removeProperty('--diff-font-size-override');
+      document.documentElement.style.removeProperty('--diffs-tab-size');
+    };
   }, [diffFontFamily, diffFontSize, diffTabSize]);
 
   const reviewSidebar = useSidebar<ReviewSidebarTab>(true, 'annotations');
@@ -211,7 +216,9 @@ const ReviewApp: React.FC<{ __embedded?: boolean }> = ({ __embedded }) => {
   const [repoInfo, setRepoInfo] = useState<{ display: string; branch?: string } | null>(null);
 
   useEffect(() => {
+    const prev = document.title;
     document.title = repoInfo ? `${repoInfo.display} · Code Review` : "Code Review";
+    return () => { document.title = prev; };
   }, [repoInfo]);
 
   const { prMetadata, prStackInfo, prStackTree, prDiffScope, prDiffScopeOptions, updatePRSession } = usePRSession();
@@ -1769,7 +1776,11 @@ const ReviewApp: React.FC<{ __embedded?: boolean }> = ({ __embedded }) => {
       <div className={`${__embedded ? 'h-full' : 'h-screen'} flex flex-col bg-background overflow-hidden`}>
         {/* Header */}
         <header className="py-1 flex items-center justify-between px-2 md:px-4 border-b border-border/50 bg-card/50 backdrop-blur-xl z-50">
-          <div className="min-w-0 flex items-center gap-2 md:gap-3 -ml-1.5 md:-ml-3">
+          <div className={`min-w-0 flex items-center gap-2 md:gap-3 ${headerLeft ? '' : '-ml-1.5 md:-ml-3'}`}>
+            {headerLeft}
+            {headerLeft && shouldShowFileTree && (
+              <div className="w-px h-5 bg-border/50 mx-0.5 hidden md:block" />
+            )}
             {shouldShowFileTree && (
               <>
                 <button
@@ -2513,7 +2524,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean }> = ({ __embedded }) => {
 
 export default ReviewApp;
 
-export function ReviewAppEmbedded() {
-  return <ReviewApp __embedded />;
+export function ReviewAppEmbedded({ headerLeft }: { headerLeft?: React.ReactNode }) {
+  return <ReviewApp __embedded headerLeft={headerLeft} />;
 }
 
