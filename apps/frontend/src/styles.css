@@ -7,6 +7,7 @@
 
 @source "../src/**/*.{ts,tsx}";
 @source "../../../packages/plannotator-code-review/**/*.{ts,tsx}";
+@source "../../../packages/plannotator-plan-review/**/*.{ts,tsx}";
 @source "../../../packages/ui/components/**/*.{ts,tsx}";
 @source "../../../packages/ui/hooks/**/*.{ts,tsx}";
 
