@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { afterEach, describe, it, expect, mock, beforeEach } from 'bun:test';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { SessionProvider, useSessionFetch } from './useSessionFetch';
@@ -11,12 +11,18 @@ function Capture() {
   return null;
 }
 
+const originalFetch = globalThis.fetch;
+
 beforeEach(() => {
   calls.length = 0;
   globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
     calls.push({ input, init });
     return Promise.resolve(new Response('ok'));
   }) as typeof fetch;
+});
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
 });
 
 describe('useSessionFetch', () => {
