@@ -1,10 +1,11 @@
-import { useCallback, useEffect } from "react";
+import { Activity, useCallback, useEffect } from "react";
 import { Outlet } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "../components/sidebar/AppSidebar";
 import { AddProjectDialog } from "../components/landing/AddProjectDialog";
+import { SessionSurface } from "../components/sessions/SessionSurface";
 import { useDaemonEvents } from "../daemon/events/use-daemon-events";
 import { projectStore } from "../stores/project-store";
 import { useAppStore } from "../stores/app-store";
@@ -12,6 +13,8 @@ import { useAppStore } from "../stores/app-store";
 export function Layout() {
   const addProjectOpen = useAppStore((s) => s.addProjectOpen);
   const setAddProjectOpen = useAppStore((s) => s.setAddProjectOpen);
+  const activeSessionId = useAppStore((s) => s.activeSessionId);
+  const visitedSessions = useAppStore((s) => s.visitedSessions);
 
   useDaemonEvents();
 
@@ -29,7 +32,17 @@ export function Layout() {
       >
         <AppSidebar onAddProject={openAddProject} />
         <main className="flex-1 overflow-hidden">
-          <Outlet />
+          {/* Landing page and error states render via Outlet */}
+          <Activity mode={activeSessionId === null ? "visible" : "hidden"}>
+            <Outlet />
+          </Activity>
+
+          {/* Each visited session stays alive via Activity */}
+          {Object.values(visitedSessions).map(({ sessionId, bootstrap }) => (
+            <Activity key={sessionId} mode={sessionId === activeSessionId ? "visible" : "hidden"}>
+              <SessionSurface bootstrap={bootstrap} />
+            </Activity>
+          ))}
         </main>
         <AddProjectDialog open={addProjectOpen} onOpenChange={setAddProjectOpen} />
         <Toaster position="bottom-right" />

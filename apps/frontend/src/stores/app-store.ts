@@ -1,20 +1,32 @@
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 import { immer } from "zustand/middleware/immer";
+import type { SessionBootstrap } from "../daemon/contracts";
 
-// TODO: expand as we add global preferences, active project context, etc.
+export interface VisitedSession {
+  sessionId: string;
+  bootstrap: SessionBootstrap;
+}
+
 export interface AppState {
   addProjectOpen: boolean;
+  activeSessionId: string | null;
+  visitedSessions: Record<string, VisitedSession>;
 }
 
 export interface AppActions {
   setAddProjectOpen(open: boolean): void;
+  activateSession(sessionId: string, bootstrap: SessionBootstrap): void;
+  deactivateSession(): void;
+  removeSession(sessionId: string): void;
 }
 
 export type AppStore = AppState & AppActions;
 
 const initialState: AppState = {
   addProjectOpen: false,
+  activeSessionId: null,
+  visitedSessions: {},
 };
 
 export function createAppStore(initial: Partial<AppState> = {}) {
@@ -25,6 +37,27 @@ export function createAppStore(initial: Partial<AppState> = {}) {
       setAddProjectOpen(open) {
         set((state) => {
           state.addProjectOpen = open;
+        });
+      },
+      activateSession(sessionId, bootstrap) {
+        set((state) => {
+          state.activeSessionId = sessionId;
+          if (!state.visitedSessions[sessionId]) {
+            state.visitedSessions[sessionId] = { sessionId, bootstrap };
+          }
+        });
+      },
+      deactivateSession() {
+        set((state) => {
+          state.activeSessionId = null;
+        });
+      },
+      removeSession(sessionId) {
+        set((state) => {
+          delete state.visitedSessions[sessionId];
+          if (state.activeSessionId === sessionId) {
+            state.activeSessionId = null;
+          }
         });
       },
     })),
