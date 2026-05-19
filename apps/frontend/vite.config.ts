@@ -60,6 +60,10 @@ export default defineConfig(({ command }) => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "src"),
+        "@plannotator/code-review": path.resolve(
+          __dirname,
+          "../../packages/plannotator-code-review",
+        ),
         "@plannotator/shared": path.resolve(__dirname, "../../packages/shared"),
         "@plannotator/ui": path.resolve(__dirname, "../../packages/ui"),
       },

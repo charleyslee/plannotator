@@ -255,7 +255,7 @@ export const SETTINGS = {
       }
     },
   },
-} satisfies Record<string, SettingDef<unknown>>;
+} satisfies Record<string, SettingDef<any>>;
 
 export type SettingsMap = typeof SETTINGS;
 export type SettingName = keyof SettingsMap;

@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { SessionProvider } from "@plannotator/ui/hooks/useSessionFetch";
+import { ReviewAppEmbedded } from "@plannotator/code-review";
+import "@plannotator/code-review/styles";
 import type { SessionBootstrap } from "../daemon/contracts";
 import type { DaemonApiResult } from "../daemon/api/errors";
 import { getSessionModeMeta } from "../shared/session-meta";
@@ -37,6 +40,15 @@ function SessionRoute() {
   }
 
   const { session } = result.data;
+
+  if (session.mode === "review") {
+    return (
+      <SessionProvider sessionId={session.id}>
+        <ReviewAppEmbedded />
+      </SessionProvider>
+    );
+  }
+
   const meta = getSessionModeMeta(session.mode);
   const Icon = meta.icon;
 
