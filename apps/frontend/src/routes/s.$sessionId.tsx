@@ -44,7 +44,7 @@ function SessionRoute() {
   if (session.mode === "review") {
     return (
       <SessionProvider sessionId={session.id}>
-        <ReviewAppEmbedded headerLeft={<SidebarTrigger className="p-1" />} />
+        <ReviewAppEmbedded headerLeft={<SidebarTrigger className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" />} />
       </SessionProvider>
     );
   }
