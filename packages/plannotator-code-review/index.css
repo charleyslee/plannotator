@@ -1,16 +1,4 @@
-@import "tailwindcss";
-
-@custom-variant dark (&:not(.light *));
 @import "dockview-react/dist/styles/dockview.css";
-
-/* Tell Tailwind where to scan for classes */
-@source "../ui/components/**/*.tsx";
-@source "../ui/hooks/**/*.ts";
-@source "./*.tsx";
-@source "./components/**/*.tsx";
-@source "./dock/**/*.tsx";
-
-@import "../ui/theme.css";
 
 /* =====================================================
    Code Review Specific Styles
