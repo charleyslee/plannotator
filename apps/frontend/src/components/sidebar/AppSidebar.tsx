@@ -96,7 +96,12 @@ export function AppSidebar({ onAddProject }: AppSidebarProps) {
 
                     return (
                       <SidebarMenuItem key={session.id}>
-                        <SidebarMenuButton asChild isActive={isActive} tooltip={session.label} className="pr-7">
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive}
+                          tooltip={session.label}
+                          className="pr-7"
+                        >
                           <Link to="/s/$sessionId" params={{ sessionId: session.id }}>
                             <Icon
                               className={cn(
