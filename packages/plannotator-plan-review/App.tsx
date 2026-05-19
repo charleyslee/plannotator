@@ -97,7 +97,7 @@ type NoteAutoSaveResults = {
   octarine?: boolean;
 };
 
-const App: React.FC = () => {
+const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({ __embedded, headerLeft }) => {
   const fetch = useSessionFetch();
   const [markdown, setMarkdown] = useState(DEMO_PLAN_CONTENT);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -1674,18 +1674,17 @@ const App: React.FC = () => {
 
 
   if (isLoading && !isSharedSession) {
-    return (
-      <ThemeProvider defaultTheme="dark">
-        <div className="h-screen bg-background" />
-      </ThemeProvider>
+    const skeleton = (
+      <div className={`${__embedded ? 'h-full' : 'h-screen'} bg-background`} />
     );
+    if (__embedded) return skeleton;
+    return <ThemeProvider defaultTheme="dark">{skeleton}</ThemeProvider>;
   }
 
-  return (
-    <ThemeProvider defaultTheme="dark">
-      <TooltipProvider delayDuration={900} skipDelayDuration={200} disableHoverableContent>
-      <div data-print-region="root" className="h-screen flex flex-col bg-background overflow-hidden">
+  const innerContent = (
+      <div data-print-region="root" className={`${__embedded ? 'h-full' : 'h-screen'} flex flex-col bg-background overflow-hidden`}>
         <AppHeader
+          headerLeft={headerLeft}
           isApiMode={isApiMode}
           annotateMode={annotateMode}
           archiveMode={archive.archiveMode}
@@ -2159,23 +2158,25 @@ const App: React.FC = () => {
           variant="warning"
         />
 
-        <Toaster
-          position="top-right"
-          offset={64}
-          toastOptions={{
-            style: {
-              '--normal-bg': 'var(--card)',
-              '--normal-border': 'var(--border)',
-              '--normal-text': 'var(--foreground)',
-              '--success-bg': 'oklch(from var(--success) l c h / 0.15)',
-              '--success-border': 'oklch(from var(--success) l c h / 0.3)',
-              '--success-text': 'var(--success)',
-              '--error-bg': 'oklch(from var(--destructive) l c h / 0.15)',
-              '--error-border': 'oklch(from var(--destructive) l c h / 0.3)',
-              '--error-text': 'var(--destructive)',
-            } as React.CSSProperties,
-          }}
-        />
+        {!__embedded && (
+          <Toaster
+            position="top-right"
+            offset={64}
+            toastOptions={{
+              style: {
+                '--normal-bg': 'var(--card)',
+                '--normal-border': 'var(--border)',
+                '--normal-text': 'var(--foreground)',
+                '--success-bg': 'oklch(from var(--success) l c h / 0.15)',
+                '--success-border': 'oklch(from var(--success) l c h / 0.3)',
+                '--success-text': 'var(--success)',
+                '--error-bg': 'oklch(from var(--destructive) l c h / 0.15)',
+                '--error-border': 'oklch(from var(--destructive) l c h / 0.3)',
+                '--error-text': 'var(--destructive)',
+              } as React.CSSProperties,
+            }}
+          />
+        )}
 
         {/* Completion overlay - shown after approve/deny */}
         <CompletionOverlay
@@ -2228,9 +2229,21 @@ const App: React.FC = () => {
           }}
         />
       </div>
+  );
+
+  if (__embedded) return innerContent;
+
+  return (
+    <ThemeProvider defaultTheme="dark">
+      <TooltipProvider delayDuration={900} skipDelayDuration={200} disableHoverableContent>
+        {innerContent}
       </TooltipProvider>
     </ThemeProvider>
   );
 };
 
 export default App;
+
+export function PlanAppEmbedded({ headerLeft }: { headerLeft?: React.ReactNode }) {
+  return <App __embedded headerLeft={headerLeft} />;
+}

@@ -9,6 +9,8 @@ import type { CallbackConfig } from '@plannotator/ui/utils/callback';
 import type { UIPreferences } from '@plannotator/ui/utils/uiPreferences';
 
 interface AppHeaderProps {
+  // Slot for external content (e.g., shell sidebar trigger)
+  headerLeft?: React.ReactNode;
   // Mode flags (stable after mount)
   isApiMode: boolean;
   annotateMode: boolean;
@@ -78,6 +80,7 @@ interface AppHeaderProps {
 }
 
 export const AppHeader = React.memo<AppHeaderProps>(({
+  headerLeft,
   isApiMode,
   annotateMode,
   archiveMode,
@@ -136,7 +139,10 @@ export const AppHeader = React.memo<AppHeaderProps>(({
 }) => {
   return (
     <header data-app-header="true" className="h-12 flex items-center justify-between px-2 md:px-4 border-b border-border/50 bg-card/50 backdrop-blur-xl sticky top-0 z-[50]">
-      <AppHeaderLogo />
+      <div className="flex items-center gap-2">
+        {headerLeft}
+        <AppHeaderLogo />
+      </div>
 
       <div className="flex items-center gap-1 md:gap-2">
         {/* Bot callback buttons — only shown when ?cb=&ct= params are present */}
