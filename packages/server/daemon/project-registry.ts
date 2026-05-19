@@ -85,9 +85,14 @@ export function addProject(
   name: string | undefined,
   options: ProjectRegistryOptions = {},
 ): DaemonProjectEntry {
-  if (!existsSync(cwd)) {
-    throw new Error(`Directory does not exist: ${cwd}`);
+  const resolved = cwd.startsWith("~/")
+    ? join(homedir(), cwd.slice(2))
+    : cwd === "~"
+      ? homedir()
+      : cwd;
+  if (!existsSync(resolved)) {
+    throw new Error(`Directory does not exist: ${resolved}`);
   }
-  const projectName = name ?? cwd.split("/").filter(Boolean).pop() ?? "unknown";
-  return registerProject(projectName, cwd, options);
+  const projectName = name ?? resolved.split("/").filter(Boolean).pop() ?? "unknown";
+  return registerProject(projectName, resolved, options);
 }
