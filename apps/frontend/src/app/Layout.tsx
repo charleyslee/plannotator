@@ -1,4 +1,4 @@
-import { Activity, useCallback, useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { Outlet, useMatchRoute } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -23,7 +23,6 @@ export function Layout() {
     void projectStore.getState().fetchProjects();
   }, []);
 
-  // Detect when the user navigates away from a session (e.g., to landing page)
   const isOnSession = !!matchRoute({ to: "/s/$sessionId", fuzzy: true });
   useEffect(() => {
     if (!isOnSession && activeSessionId !== null) {
@@ -40,17 +39,30 @@ export function Layout() {
         style={{ "--sidebar-width": "16rem" } as React.CSSProperties}
       >
         <AppSidebar onAddProject={openAddProject} />
-        <main className="flex-1 overflow-hidden">
-          {/* Landing page and error states render via Outlet */}
-          <Activity mode={activeSessionId === null ? "visible" : "hidden"}>
+        <main className="relative flex-1 overflow-hidden">
+          {/* Landing page — visible when no session is active */}
+          <div
+            className="absolute inset-0"
+            style={{
+              visibility: activeSessionId === null ? "visible" : "hidden",
+              zIndex: activeSessionId === null ? 1 : 0,
+            }}
+          >
             <Outlet />
-          </Activity>
+          </div>
 
-          {/* Each visited session stays alive via Activity */}
+          {/* Each visited session stays alive — hidden via visibility, not display:none */}
           {Object.values(visitedSessions).map(({ sessionId, bootstrap }) => (
-            <Activity key={sessionId} mode={sessionId === activeSessionId ? "visible" : "hidden"}>
+            <div
+              key={sessionId}
+              className="absolute inset-0"
+              style={{
+                visibility: sessionId === activeSessionId ? "visible" : "hidden",
+                zIndex: sessionId === activeSessionId ? 1 : 0,
+              }}
+            >
               <SessionSurface bootstrap={bootstrap} />
-            </Activity>
+            </div>
           ))}
         </main>
         <AddProjectDialog open={addProjectOpen} onOpenChange={setAddProjectOpen} />
