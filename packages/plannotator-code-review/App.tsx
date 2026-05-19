@@ -1772,7 +1772,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
       <ReviewStateProvider value={reviewStateValue}>
       <JobLogsProvider value={jobLogsValue}>
       {isSwitchingPRScope && <PRSwitchOverlay />}
-      <div className={`${__embedded ? 'h-full rounded-tl-xl' : 'h-screen'} flex flex-col bg-background overflow-hidden`}>
+      <div className={`${__embedded ? 'h-full' : 'h-screen'} flex flex-col bg-background overflow-hidden`}>
         {/* Header */}
         <header className="py-1 flex items-center justify-between px-2 md:px-4 border-b border-border/50 bg-card/50 backdrop-blur-xl z-50">
           <div className={`min-w-0 flex items-center gap-2 md:gap-3 ${headerLeft ? '' : '-ml-1.5 md:-ml-3'}`}>
