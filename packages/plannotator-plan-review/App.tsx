@@ -147,6 +147,7 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
   const [origin, setOrigin] = useState<Origin | null>(null);
   const [gitUser, setGitUser] = useState<string | undefined>();
   const [isWSL, setIsWSL] = useState(false);
+  const [legacyTabMode, setLegacyTabMode] = useState(false);
   const [globalAttachments, setGlobalAttachments] = useState<ImageAttachment[]>([]);
   const [annotateMode, setAnnotateMode] = useState(false);
   const [gate, setGate] = useState(false);
@@ -745,8 +746,8 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
       .then((data: { plan: string; origin?: Origin; mode?: 'annotate' | 'annotate-last' | 'annotate-folder' | 'archive' | 'goal-setup'; goalSetup?: GoalSetupBundle; filePath?: string; sourceInfo?: string; sourceConverted?: boolean; gate?: boolean; renderAs?: 'html' | 'markdown'; rawHtml?: string; sharingEnabled?: boolean; shareBaseUrl?: string; pasteApiUrl?: string; repoInfo?: { display: string; branch?: string; host?: string }; previousPlan?: string | null; versionInfo?: { version: number; totalVersions: number; project: string }; archivePlans?: ArchivedPlan[]; projectRoot?: string; isWSL?: boolean; serverConfig?: { displayName?: string; gitUser?: string } }) => {
         // Initialize config store with server-provided values (config file > cookie > default)
         configStore.init(data.serverConfig);
-        // gitUser drives the "Use git name" button in Settings; stays undefined (button hidden) when unavailable
         setGitUser(data.serverConfig?.gitUser);
+        if ((data.serverConfig as { legacyTabMode?: boolean } | undefined)?.legacyTabMode) setLegacyTabMode(true);
         if (data.mode === 'goal-setup' && data.goalSetup) {
           setGoalSetupBundle(data.goalSetup);
           setMarkdown('');
@@ -1776,8 +1777,8 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
           octarineConfigured={isOctarineConfigured()}
         />
 
-        {/* Embedded completion banner — inline, non-blocking */}
-        {__embedded && <CompletionBanner submitted={submitted} title={completionTitle} subtitle={completionSubtitle} />}
+        {/* Embedded completion banner — inline, non-blocking (skipped in legacy tab mode) */}
+        {__embedded && !legacyTabMode && <CompletionBanner submitted={submitted} title={completionTitle} subtitle={completionSubtitle} />}
 
         {/* Linked document error banner */}
         {linkedDocHook.error && (
@@ -2215,8 +2216,8 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
           />
         )}
 
-        {/* Standalone completion overlay — full screen with auto-close */}
-        {!__embedded && (
+        {/* Full-screen overlay: standalone mode, or legacy tab mode even when embedded */}
+        {(!__embedded || legacyTabMode) && (
           <CompletionOverlay
             submitted={submitted}
             title={completionTitle}

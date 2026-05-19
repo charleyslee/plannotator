@@ -201,6 +201,7 @@ export function getServerConfig(gitUser: string | null): {
   gitUser?: string;
   conventionalComments?: boolean;
   conventionalLabels?: CCLabelConfig[] | null;
+  legacyTabMode?: boolean;
 } {
   const cfg = loadConfig();
   return {
@@ -209,6 +210,7 @@ export function getServerConfig(gitUser: string | null): {
     gitUser: gitUser ?? undefined,
     ...(cfg.conventionalComments !== undefined && { conventionalComments: cfg.conventionalComments }),
     ...(cfg.conventionalLabels !== undefined && { conventionalLabels: cfg.conventionalLabels }),
+    ...(cfg.legacyTabMode && { legacyTabMode: true }),
   };
 }
 

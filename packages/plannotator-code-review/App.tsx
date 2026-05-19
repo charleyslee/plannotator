@@ -196,6 +196,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
   const [origin, setOrigin] = useState<Origin | null>(null);
   const [gitUser, setGitUser] = useState<string | undefined>();
   const [isWSL, setIsWSL] = useState(false);
+  const [legacyTabMode, setLegacyTabMode] = useState(false);
   const [diffType, setDiffType] = useState<string>('uncommitted');
   const [gitContext, setGitContext] = useState<GitContext | null>(null);
   // Two bases:
@@ -789,10 +790,9 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
         isWSL?: boolean;
         serverConfig?: { displayName?: string; gitUser?: string };
       }) => {
-        // Initialize config store with server-provided values (config file > cookie > default)
         configStore.init(data.serverConfig);
-        // gitUser drives the "Use git name" button in Settings; stays undefined (button hidden) when unavailable
         setGitUser(data.serverConfig?.gitUser);
+        if ((data.serverConfig as { legacyTabMode?: boolean } | undefined)?.legacyTabMode) setLegacyTabMode(true);
         const apiFiles = parseDiffToFiles(data.rawPatch);
         setDiffData({
           files: apiFiles,
@@ -2140,7 +2140,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
         </header>
 
         {/* Embedded completion banner — inline, non-blocking */}
-        {__embedded && <CompletionBanner submitted={submitted} title={completionTitle} subtitle={completionSubtitle} />}
+        {__embedded && !legacyTabMode && <CompletionBanner submitted={submitted} title={completionTitle} subtitle={completionSubtitle} />}
 
         {/* Main content */}
         <div className={`flex-1 flex overflow-hidden ${isResizing ? 'select-none' : ''}`}>
@@ -2445,8 +2445,8 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
           />
         )}
 
-        {/* Standalone completion overlay — full screen with auto-close */}
-        {!__embedded && (
+        {/* Full-screen overlay: standalone mode, or legacy tab mode even when embedded */}
+        {(!__embedded || legacyTabMode) && (
           <CompletionOverlay
             submitted={submitted}
             title={completionTitle}
