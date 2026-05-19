@@ -56,7 +56,7 @@ export type DaemonLifecycleEvent =
   | Extract<DaemonEvent, { type: "daemon-status" | "daemon-error" }>
   | Extract<DaemonEvent, { type: "debug-log" }>
   | (Omit<
-      Extract<DaemonEvent, { type: "session-created" | "session-updated" | "session-removed" }>,
+      Extract<DaemonEvent, { type: "session-created" | "session-updated" | "session-removed" | "session-notify" }>,
       "session"
     > & {
       session: SessionSummary;

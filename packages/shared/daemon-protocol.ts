@@ -170,6 +170,7 @@ export type DaemonEventType =
   | "session-created"
   | "session-updated"
   | "session-removed"
+  | "session-notify"
   | "daemon-error"
   | "debug-log";
 
@@ -187,6 +188,11 @@ export type DaemonEvent =
     }
   | {
       type: "session-created" | "session-updated" | "session-removed";
+      at: string;
+      session: DaemonSessionSummary;
+    }
+  | {
+      type: "session-notify";
       at: string;
       session: DaemonSessionSummary;
     }

@@ -85,6 +85,11 @@ export async function startDaemonRuntime(options: StartDaemonRuntimeOptions): Pr
       const config = loadConfig();
       const frontendState = eventHub.getFrontendState();
       if (!config.legacyTabMode && frontendState.connected && frontendState.anyVisible) {
+        eventHub.publishDaemonEvent({
+          type: "session-notify",
+          at: new Date().toISOString(),
+          session: store.summary(record),
+        });
         return "notified";
       }
       const url = createDaemonBrowserAuthUrl(state, new URL(record.url).pathname);

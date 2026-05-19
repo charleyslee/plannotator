@@ -17,6 +17,7 @@ export interface DaemonEventStreamOptions {
   onEvent(event: DaemonLifecycleEvent): void;
   onState(state: DaemonHubConnectionState | "polling"): void;
   onError(message: string): void;
+  onSessionNotify?(session: { id: string; mode: string; project: string; label: string }): void;
   webSocketFactory?: WebSocketFactory;
   fallbackPollMs?: number;
 }
@@ -32,6 +33,7 @@ const DAEMON_EVENT_TYPES = [
   "session-created",
   "session-updated",
   "session-removed",
+  "session-notify",
   "daemon-error",
   "debug-log",
 ] as const;
@@ -81,13 +83,20 @@ export function connectDaemonEvents(
   };
 
   let currentActiveSessionId: string | null = null;
+  const pendingNotifications: { id: string; mode: string; project: string; label: string }[] = [];
 
   const sendClientState = () => {
     client.sendClientState(!document.hidden, currentActiveSessionId);
   };
 
   const handleVisibilityChange = () => {
-    if (!stopped) sendClientState();
+    if (stopped) return;
+    sendClientState();
+    if (!document.hidden && pendingNotifications.length > 0 && options.onSessionNotify) {
+      for (const n of pendingNotifications.splice(0)) {
+        options.onSessionNotify(n);
+      }
+    }
   };
   document.addEventListener("visibilitychange", handleVisibilityChange);
 
@@ -95,7 +104,16 @@ export function connectDaemonEvents(
     (message) => {
       if (stopped) return;
       const event = messageToDaemonEvent(message);
-      if (event) options.onEvent(event);
+      if (!event) return;
+      if (event.type === "session-notify" && "session" in event && options.onSessionNotify) {
+        const s = event.session;
+        if (!document.hidden) {
+          options.onSessionNotify({ id: s.id, mode: s.mode, project: s.project, label: s.label });
+        } else {
+          pendingNotifications.push({ id: s.id, mode: s.mode, project: s.project, label: s.label });
+        }
+      }
+      options.onEvent(event);
     },
     (state) => {
       if (stopped) return;
