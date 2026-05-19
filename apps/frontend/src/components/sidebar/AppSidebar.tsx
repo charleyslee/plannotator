@@ -50,16 +50,18 @@ export function AppSidebar({ onAddProject }: AppSidebarProps) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="pointer-events-none">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
-                P
-              </div>
-              <div className="grid flex-1 text-left leading-tight">
-                <span className="truncate text-sm font-semibold">Plannotator</span>
-                <span className="truncate text-[11px] text-muted-foreground">
-                  {sessions.length} session{sessions.length !== 1 ? "s" : ""}
-                </span>
-              </div>
+            <SidebarMenuButton size="lg" asChild>
+              <Link to="/">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
+                  P
+                </div>
+                <div className="grid flex-1 text-left leading-tight">
+                  <span className="truncate text-sm font-semibold">Plannotator</span>
+                  <span className="truncate text-[11px] text-muted-foreground">
+                    {sessions.length} session{sessions.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
