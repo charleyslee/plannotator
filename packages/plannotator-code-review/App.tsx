@@ -9,6 +9,7 @@ import { AgentReviewActions } from './components/AgentReviewActions';
 import { UpdateBanner } from '@plannotator/ui/components/UpdateBanner';
 import { storage } from '@plannotator/ui/utils/storage';
 import { CompletionOverlay } from '@plannotator/ui/components/CompletionOverlay';
+import { CompletionBanner } from '@plannotator/ui/components/CompletionBanner';
 import { GitHubIcon } from '@plannotator/ui/components/GitHubIcon';
 import { GitLabIcon } from '@plannotator/ui/components/GitLabIcon';
 import { RepoIcon } from '@plannotator/ui/components/RepoIcon';
@@ -1778,6 +1779,21 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
     return <ThemeProvider defaultTheme="dark">{skeleton}</ThemeProvider>;
   }
 
+  const completionTitle = !submitted ? '' :
+    submitted === 'approved' ? 'Changes Approved'
+    : submitted === 'exited' ? 'Session Closed'
+    : 'Feedback Sent';
+  const completionSubtitle = !submitted ? '' :
+    submitted === 'exited'
+      ? 'Review session closed without feedback.'
+      : platformMode
+        ? submitted === 'approved'
+          ? `Your approval was submitted to ${platformLabel}.`
+          : `Your feedback was submitted to ${platformLabel}.`
+        : submitted === 'approved'
+          ? `${getAgentName(origin)} will proceed with the changes.`
+          : `${getAgentName(origin)} will address your review feedback.`;
+
   const innerContent = (
       <ReviewStateProvider value={reviewStateValue}>
       <JobLogsProvider value={jobLogsValue}>
@@ -1894,7 +1910,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
               </button>
             </div>
 
-            {origin ? (
+            {origin && !submitted ? (
               <>
                 {/* Destination dropdown (PR mode only) */}
                 {prMetadata && (
@@ -2122,6 +2138,9 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
             )}
           </div>
         </header>
+
+        {/* Embedded completion banner — inline, non-blocking */}
+        {__embedded && <CompletionBanner submitted={submitted} title={completionTitle} subtitle={completionSubtitle} />}
 
         {/* Main content */}
         <div className={`flex-1 flex overflow-hidden ${isResizing ? 'select-none' : ''}`}>
@@ -2426,27 +2445,15 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
           />
         )}
 
-        {/* Completion overlay - shown after approve/feedback/exit */}
-        <CompletionOverlay
-          submitted={submitted}
-          title={
-            submitted === 'approved' ? 'Changes Approved'
-            : submitted === 'exited' ? 'Session Closed'
-            : 'Feedback Sent'
-          }
-          subtitle={
-            submitted === 'exited'
-              ? 'Review session closed without feedback.'
-              : platformMode
-                ? submitted === 'approved'
-                  ? `Your approval was submitted to ${platformLabel}.`
-                  : `Your feedback was submitted to ${platformLabel}.`
-                : submitted === 'approved'
-                  ? `${getAgentName(origin)} will proceed with the changes.`
-                  : `${getAgentName(origin)} will address your review feedback.`
-          }
-          agentLabel={getAgentName(origin)}
-        />
+        {/* Standalone completion overlay — full screen with auto-close */}
+        {!__embedded && (
+          <CompletionOverlay
+            submitted={submitted}
+            title={completionTitle}
+            subtitle={completionSubtitle}
+            agentLabel={getAgentName(origin)}
+          />
+        )}
 
         {/* Update notification */}
         <UpdateBanner origin={origin} isWSL={isWSL} />

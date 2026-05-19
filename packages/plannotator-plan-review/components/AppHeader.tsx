@@ -24,6 +24,7 @@ interface AppHeaderProps {
   origin: Origin | null;
 
   // Dynamic state
+  submitted: boolean;
   isSubmitting: boolean;
   isExiting: boolean;
   isPanelOpen: boolean;
@@ -91,6 +92,7 @@ export const AppHeader = React.memo<AppHeaderProps>(({
   gate,
   isSharedSession,
   origin,
+  submitted,
   isSubmitting,
   isExiting,
   isPanelOpen,
@@ -186,7 +188,7 @@ export const AppHeader = React.memo<AppHeaderProps>(({
           </>
         )}
 
-        {isApiMode && !linkedDocIsActive && goalSetupMode && (
+        {isApiMode && !submitted && !linkedDocIsActive && goalSetupMode && (
           <>
             <ExitButton
               onClick={onGoalSetupExit}
@@ -207,7 +209,7 @@ export const AppHeader = React.memo<AppHeaderProps>(({
           </>
         )}
 
-        {isApiMode && (!linkedDocIsActive || annotateMode) && !archiveMode && !goalSetupMode && (
+        {isApiMode && !submitted && (!linkedDocIsActive || annotateMode) && !archiveMode && !goalSetupMode && (
           <>
             {annotateMode ? (
               <>

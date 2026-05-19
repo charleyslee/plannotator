@@ -23,6 +23,7 @@ import { useActiveSection } from '@plannotator/ui/hooks/useActiveSection';
 import { storage } from '@plannotator/ui/utils/storage';
 import { configStore } from '@plannotator/ui/config';
 import { CompletionOverlay } from '@plannotator/ui/components/CompletionOverlay';
+import { CompletionBanner } from '@plannotator/ui/components/CompletionBanner';
 import { UpdateBanner } from '@plannotator/ui/components/UpdateBanner';
 import { getObsidianSettings, getEffectiveVaultPath, isObsidianConfigured, CUSTOM_PATH_SENTINEL } from '@plannotator/ui/utils/obsidian';
 import { getBearSettings } from '@plannotator/ui/utils/bear';
@@ -1690,6 +1691,29 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
     return <ThemeProvider defaultTheme="dark">{skeleton}</ThemeProvider>;
   }
 
+  const completionTitle = !submitted ? '' :
+    archive.archiveMode ? 'Archive Closed'
+    : submitted === 'exited' ? 'Session Closed'
+    : goalSetupMode ? 'Answers Submitted'
+    : submitted === 'approved'
+      ? (annotateMode ? 'Approved' : 'Plan Approved')
+      : annotateMode ? 'Annotations Sent'
+    : 'Feedback Sent';
+  const completionSubtitle = !submitted ? '' :
+    submitted === 'exited'
+      ? 'Annotation session closed without feedback.'
+      : archive.archiveMode
+        ? 'You can reopen with plannotator archive.'
+        : goalSetupMode
+          ? `${agentName} will use your answers to continue.`
+        : submitted === 'approved'
+          ? (annotateMode
+              ? `${agentName} will proceed.`
+              : `${agentName} will proceed with the implementation.`)
+          : annotateMode
+            ? `${agentName} will address your annotations on the ${annotateSource === 'message' ? 'message' : annotateSource === 'folder' ? 'files' : 'file'}.`
+            : `${agentName} will revise the plan based on your annotations.`;
+
   const innerContent = (
       <div ref={rootRef} data-print-region="root" className={`${__embedded ? 'h-full' : 'h-screen'} flex flex-col bg-background overflow-hidden`}>
         <AppHeader
@@ -1704,6 +1728,7 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
           gate={gate}
           isSharedSession={isSharedSession}
           origin={origin}
+          submitted={!!submitted}
           isSubmitting={isSubmitting}
           isExiting={isExiting}
           isPanelOpen={isPanelOpen}
@@ -1750,6 +1775,9 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
           bearConfigured={getBearSettings().enabled}
           octarineConfigured={isOctarineConfigured()}
         />
+
+        {/* Embedded completion banner — inline, non-blocking */}
+        {__embedded && <CompletionBanner submitted={submitted} title={completionTitle} subtitle={completionSubtitle} />}
 
         {/* Linked document error banner */}
         {linkedDocHook.error && (
@@ -2187,35 +2215,15 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
           />
         )}
 
-        {/* Completion overlay - shown after approve/deny */}
-        <CompletionOverlay
-          submitted={submitted}
-          title={
-            archive.archiveMode ? 'Archive Closed'
-            : submitted === 'exited' ? 'Session Closed'
-            : goalSetupMode ? 'Answers Submitted'
-            : submitted === 'approved'
-              ? (annotateMode ? 'Approved' : 'Plan Approved')
-              : annotateMode ? 'Annotations Sent'
-            : 'Feedback Sent'
-          }
-          subtitle={
-            submitted === 'exited'
-              ? 'Annotation session closed without feedback.'
-              : archive.archiveMode
-                ? 'You can reopen with plannotator archive.'
-                : goalSetupMode
-                  ? `${agentName} will use your answers to continue.`
-                : submitted === 'approved'
-                  ? (annotateMode
-                      ? `${agentName} will proceed.`
-                      : `${agentName} will proceed with the implementation.`)
-                  : annotateMode
-                    ? `${agentName} will address your annotations on the ${annotateSource === 'message' ? 'message' : annotateSource === 'folder' ? 'files' : 'file'}.`
-                    : `${agentName} will revise the plan based on your annotations.`
-          }
-          agentLabel={agentName}
-        />
+        {/* Standalone completion overlay — full screen with auto-close */}
+        {!__embedded && (
+          <CompletionOverlay
+            submitted={submitted}
+            title={completionTitle}
+            subtitle={completionSubtitle}
+            agentLabel={agentName}
+          />
+        )}
 
         {/* Update notification */}
         <UpdateBanner origin={origin} isWSL={isWSL} />
