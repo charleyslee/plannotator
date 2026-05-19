@@ -126,7 +126,6 @@ let planHtmlContentPromise: Promise<string> | undefined;
 let reviewHtmlContentPromise: Promise<string> | undefined;
 let daemonShellHtmlContentPromise: Promise<string> | undefined;
 let htmlAssetsPromise: Promise<typeof import("./html-assets")> | undefined;
-let daemonShellHtmlPromise: Promise<typeof import("./daemon-shell-html")> | undefined;
 
 function getHtmlAssets() {
   htmlAssetsPromise ??= import("./html-assets");
@@ -144,8 +143,7 @@ function getReviewHtmlContent(): Promise<string> {
 }
 
 function getDaemonShellHtmlContent(): Promise<string> {
-  daemonShellHtmlPromise ??= import("./daemon-shell-html");
-  daemonShellHtmlContentPromise ??= daemonShellHtmlPromise.then((mod) => mod.daemonShellHtmlContent);
+  daemonShellHtmlContentPromise ??= import("./daemon-shell-html").then((mod) => mod.loadDaemonShellHtml());
   return daemonShellHtmlContentPromise;
 }
 
