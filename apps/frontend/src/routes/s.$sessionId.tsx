@@ -26,10 +26,9 @@ function SessionRoute() {
   useEffect(() => {
     if (result.ok) {
       appStore.getState().activateSession(sessionId, result.data);
+    } else {
+      appStore.getState().deactivateSession();
     }
-    return () => {
-      // Don't deactivate here — Layout handles visibility via Activity
-    };
   }, [sessionId, result]);
 
   if (!result.ok) {
