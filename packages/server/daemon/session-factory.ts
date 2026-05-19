@@ -536,6 +536,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         handleRequest: session.handleRequest,
         dispose: registerSessionDecision(context, id, () => session.waitForDecision(), () => session.dispose()),
         remoteShare,
+        snapshot: () => ({ plan, origin: request.origin }),
       });
       return record;
     }
@@ -606,6 +607,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
           mode: input.mode,
         })),
         remoteShare,
+        snapshot: () => ({ plan: input.markdown, filePath: input.filePath, mode: input.mode, sourceInfo: input.sourceInfo }),
       });
       return record;
     }
@@ -658,6 +660,13 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         handleRequest: session.handleRequest,
         dispose: registerSessionDecision(context, id, () => session.waitForDecision(), () => session.dispose()),
         remoteShare,
+        snapshot: () => ({
+          rawPatch: input.rawPatch,
+          gitRef: input.gitRef,
+          origin: request.origin,
+          diffType: input.gitContext ? (input.diffType ?? "unstaged") : undefined,
+          gitContext: input.gitContext ? { currentBranch: input.gitContext.currentBranch, base: input.base } : undefined,
+        }),
       });
       return record;
     }
@@ -682,6 +691,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         htmlContent: session.htmlContent,
         handleRequest: session.handleRequest,
         dispose: registerSessionDecision(context, id, () => session.waitForDecision(), () => session.dispose()),
+        snapshot: () => ({ stage: bundle.stage, goalSlug: request.goalSlug }),
       });
       return record;
     }

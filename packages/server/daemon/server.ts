@@ -6,6 +6,8 @@ import {
   type DaemonEndpoint,
   type DaemonEvent,
   type DaemonSessionBootstrapResponse,
+  type DaemonSessionStatus,
+  type DaemonSessionSummary,
   type DaemonStatus,
   type DaemonWebSocketClientMessage,
 } from "@plannotator/shared/daemon-protocol";
@@ -16,6 +18,7 @@ import { DaemonEventHub } from "./event-hub";
 import type { SessionEventFamily, SessionRequestContext, SessionSnapshotProvider } from "../session-handler";
 import { handleFavicon } from "../shared-handlers";
 import { addProject, listProjects, removeProject } from "./project-registry";
+import { readSnapshot } from "./session-store";
 
 const RESULT_DELETE_GRACE_MS = 2_000;
 const DAEMON_AUTH_COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
@@ -508,9 +511,41 @@ export function createDaemonFetchHandler(options: DaemonServerOptions): DaemonFe
 
       const browserSession = sessionFromPath(url.pathname);
       if (browserSession) {
-        const record = store.get(browserSession.id);
+        let record = store.get(browserSession.id);
         const sessionApiPath = `/s/${browserSession.id}/api`;
         if (!record) {
+          const snapshot = readSnapshot(browserSession.id);
+          if (snapshot && isPageRequest(req)) {
+            return html(sessionShellHtml(options.shellHtmlContent, browserSession.id));
+          }
+          if (snapshot && req.method === "GET") {
+            if (url.pathname === `${sessionApiPath}/session`) {
+              const summary: DaemonSessionSummary = {
+                id: snapshot.sessionId,
+                mode: snapshot.mode,
+                status: snapshot.status as DaemonSessionStatus,
+                url: `${endpoint.baseUrl}/s/${snapshot.sessionId}`,
+                project: snapshot.meta.project,
+                label: snapshot.meta.label,
+                ...(snapshot.meta.origin && { origin: snapshot.meta.origin }),
+                ...(snapshot.meta.cwd && { cwd: snapshot.meta.cwd }),
+                createdAt: snapshot.capturedAt,
+                updatedAt: snapshot.capturedAt,
+              };
+              const bootstrap: DaemonSessionBootstrapResponse = {
+                ok: true,
+                session: summary,
+                apiBase: sessionApiPath,
+                capabilities: getDaemonCapabilities(),
+                supportedSessionViews: [...PLANNOTATOR_DAEMON_SESSION_VIEWS],
+              };
+              return json(bootstrap);
+            }
+            const apiPath = url.pathname.slice(sessionApiPath.length);
+            if (apiPath === "/plan" || apiPath === "/diff") {
+              return json({ ...snapshot.content as object, _snapshot: true, _status: snapshot.status, _result: snapshot.result });
+            }
+          }
           if (url.pathname === `${sessionApiPath}/session` && req.method === "GET") {
             return json(createDaemonErrorResponse("session-not-found", `Session not found: ${browserSession.id}`), { status: 404 });
           }
@@ -534,6 +569,13 @@ export function createDaemonFetchHandler(options: DaemonServerOptions): DaemonFe
         }
         if (url.pathname === sessionApiPath || url.pathname.startsWith(`${sessionApiPath}/`)) {
           if (!record.handleRequest) {
+            const snapshot = readSnapshot(browserSession.id);
+            if (snapshot && req.method === "GET") {
+              const apiPath = url.pathname.slice(sessionApiPath.length);
+              if (apiPath === "/plan" || apiPath === "/diff") {
+                return json({ ...snapshot.content as object, _snapshot: true, _status: snapshot.status, _result: snapshot.result });
+              }
+            }
             return new Response("Session has no API handler", { status: 404 });
           }
           const scopedUrl = stripSessionApiPath(url, browserSession.id);

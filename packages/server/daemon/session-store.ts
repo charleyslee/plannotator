@@ -1,3 +1,6 @@
+import { mkdirSync, writeFileSync, readdirSync, readFileSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
 import type {
   DaemonRemoteShareNotice,
   DaemonSessionEvent,
@@ -26,6 +29,7 @@ export interface DaemonSessionRecord<TResult = unknown> {
   handleRequest?: SessionRequestHandler;
   dispose?: () => void | Promise<void>;
   disposed?: boolean;
+  snapshot?: () => unknown;
 }
 
 export interface CreateDaemonSessionInput<TResult = unknown> {
@@ -43,6 +47,68 @@ export interface CreateDaemonSessionInput<TResult = unknown> {
   dispose?: () => void | Promise<void>;
   result?: TResult;
   remoteShare?: DaemonRemoteShareNotice;
+  snapshot?: () => unknown;
+}
+
+export interface SessionSnapshot {
+  version: 1;
+  mode: DaemonSessionMode;
+  sessionId: string;
+  status: string;
+  result: unknown;
+  capturedAt: string;
+  meta: { project: string; origin?: string; cwd?: string; label: string };
+  content: unknown;
+}
+
+const SNAPSHOT_DIR = join(homedir(), ".plannotator", "sessions");
+const MAX_SNAPSHOT_BYTES = 5 * 1024 * 1024;
+
+function writeSnapshot(record: DaemonSessionRecord): void {
+  if (!record.snapshot) return;
+  try {
+    const content = record.snapshot();
+    const snapshot: SessionSnapshot = {
+      version: 1,
+      mode: record.mode,
+      sessionId: record.id,
+      status: record.status,
+      result: record.result,
+      capturedAt: new Date().toISOString(),
+      meta: { project: record.project, origin: record.origin, cwd: record.cwd, label: record.label },
+      content,
+    };
+    const json = JSON.stringify(snapshot);
+    if (json.length > MAX_SNAPSHOT_BYTES) return;
+    mkdirSync(SNAPSHOT_DIR, { recursive: true });
+    writeFileSync(join(SNAPSHOT_DIR, `${record.id}.json`), json, "utf-8");
+  } catch {}
+}
+
+export function readSnapshot(sessionId: string): SessionSnapshot | null {
+  try {
+    const raw = readFileSync(join(SNAPSHOT_DIR, `${sessionId}.json`), "utf-8");
+    const parsed = JSON.parse(raw);
+    if (parsed?.version === 1 && parsed?.sessionId === sessionId) return parsed as SessionSnapshot;
+  } catch {}
+  return null;
+}
+
+export function listSnapshots(): SessionSnapshot[] {
+  try {
+    const files = readdirSync(SNAPSHOT_DIR).filter((f) => f.endsWith(".json"));
+    const snapshots: SessionSnapshot[] = [];
+    for (const file of files) {
+      try {
+        const raw = readFileSync(join(SNAPSHOT_DIR, file), "utf-8");
+        const parsed = JSON.parse(raw);
+        if (parsed?.version === 1) snapshots.push(parsed as SessionSnapshot);
+      } catch {}
+    }
+    return snapshots;
+  } catch {
+    return [];
+  }
 }
 
 export interface DaemonSessionStoreOptions {
@@ -166,6 +232,7 @@ export class DaemonSessionStore {
     record.expiresAt = iso(now + TERMINAL_SESSION_TTL_MS);
     this.resolveWaiters(record);
     this.emit("session-updated", record);
+    writeSnapshot(record);
     void this.disposeResources(record);
     this.releaseRoutingPayloads(record);
     return record;
