@@ -46,6 +46,17 @@ export interface ProjectListResponse {
   projects: ProjectEntry[];
 }
 
+export interface WorktreeEntry {
+  path: string;
+  branch: string | null;
+  head: string;
+}
+
+export interface WorktreeListResponse {
+  ok: true;
+  worktrees: WorktreeEntry[];
+}
+
 export type SessionLifecycleStatus = DaemonSessionStatus;
 export type DaemonServerMessage = DaemonWebSocketServerMessage;
 

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Code2, Archive, Folder, FolderPlus } from "lucide-react";
+import { Code2, Archive, Folder, FolderPlus, GitBranch, ChevronRight, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -8,29 +8,32 @@ import { useProjectStore } from "../../stores/project-store";
 import { useDaemonEventStore } from "../../daemon/events/event-store";
 import { daemonApiClient } from "../../daemon/api/client";
 import { getSessionModeMeta } from "../../shared/session-meta";
-import type { ProjectEntry, SessionSummary } from "../../daemon/contracts";
+import type { ProjectEntry, SessionSummary, WorktreeEntry } from "../../daemon/contracts";
 
 interface LandingPageProps {
   onAddProject: () => void;
 }
 
+interface Selection {
+  cwd: string;
+  label: string;
+}
+
 export function LandingPage({ onAddProject }: LandingPageProps) {
   const projects = useProjectStore((s) => s.projects);
   const sessions = useDaemonEventStore((s) => s.sessions);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Selection | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const selectedProject = projects.find((p) => p.name === selected);
-
   const handleAction = useCallback(
     async (action: "review" | "archive") => {
-      if (!selectedProject) return;
+      if (!selected) return;
       setLoading(action);
       const result =
         action === "review"
-          ? await daemonApiClient.createReviewSession(selectedProject.cwd)
-          : await daemonApiClient.createArchiveSession(selectedProject.cwd);
+          ? await daemonApiClient.createReviewSession(selected.cwd)
+          : await daemonApiClient.createArchiveSession(selected.cwd);
       setLoading(null);
       if (result.ok) {
         void navigate({ to: "/s/$sessionId", params: { sessionId: result.data.session.id } });
@@ -38,7 +41,7 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
         toast.error(`Failed to start ${action}`, { description: result.error.message });
       }
     },
-    [selectedProject, navigate],
+    [selected, navigate],
   );
 
   return (
@@ -63,7 +66,7 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
                       </span>
                       <ProjectTable
                         projects={projects}
-                        selected={selected}
+                        selectedCwd={selected?.cwd ?? null}
                         onSelect={setSelected}
                       />
                       <button
@@ -82,7 +85,7 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            disabled={!selectedProject || loading === "review"}
+                            disabled={!selected || loading === "review"}
                             onClick={() => handleAction("review")}
                             className={cn(
                               "relative inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background px-3 py-1.5 text-[12px] font-medium transition-colors",
@@ -96,7 +99,7 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
                           </button>
                           <button
                             type="button"
-                            disabled={!selectedProject || loading === "archive"}
+                            disabled={!selected || loading === "archive"}
                             onClick={() => handleAction("archive")}
                             className={cn(
                               "relative inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background px-3 py-1.5 text-[12px] font-medium transition-colors",
@@ -144,34 +147,160 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
 
 function ProjectTable({
   projects,
-  selected,
+  selectedCwd,
   onSelect,
 }: {
   projects: ProjectEntry[];
-  selected: string | null;
-  onSelect: (name: string) => void;
+  selectedCwd: string | null;
+  onSelect: (selection: Selection) => void;
 }) {
+  const topLevel = projects.filter((p) => !p.parentCwd);
+  const worktreeChildren = (parentCwd: string) =>
+    projects.filter((p) => p.parentCwd === parentCwd);
+
   return (
     <div className="max-h-64 overflow-y-auto rounded-lg border border-border/60">
-      {projects.map((project, i) => (
+      {topLevel.map((project, i) => {
+        const children = worktreeChildren(project.cwd);
+        return (
+          <ProjectNode
+            key={project.cwd}
+            project={project}
+            children={children}
+            isFirst={i === 0}
+            selectedCwd={selectedCwd}
+            onSelect={onSelect}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function ProjectNode({
+  project,
+  children,
+  isFirst,
+  selectedCwd,
+  onSelect,
+}: {
+  project: ProjectEntry;
+  children: ProjectEntry[];
+  isFirst: boolean;
+  selectedCwd: string | null;
+  onSelect: (selection: Selection) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [worktrees, setWorktrees] = useState<WorktreeEntry[]>([]);
+  const [loadingWorktrees, setLoadingWorktrees] = useState(false);
+  const hasChildren = children.length > 0;
+
+  const handleToggle = useCallback(async () => {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    setExpanded(true);
+    if (worktrees.length === 0 && !loadingWorktrees) {
+      setLoadingWorktrees(true);
+      const result = await daemonApiClient.listWorktrees(project.cwd);
+      if (result.ok) {
+        setWorktrees(result.data.worktrees.filter((wt) => wt.path !== project.cwd));
+      }
+      setLoadingWorktrees(false);
+    }
+  }, [expanded, worktrees.length, loadingWorktrees, project.cwd]);
+
+  const isSelected = selectedCwd === project.cwd;
+
+  return (
+    <>
+      <div
+        className={cn(
+          "flex w-full items-center text-left text-[13px] transition-colors",
+          !isFirst && "border-t border-border/40",
+          isSelected
+            ? "bg-primary/8 text-foreground"
+            : "text-muted-foreground hover:bg-surface-1/50 hover:text-foreground",
+        )}
+      >
+        {(hasChildren || true) && (
+          <button
+            type="button"
+            onClick={handleToggle}
+            className="flex shrink-0 items-center justify-center px-1.5 py-2 text-muted-foreground/60 hover:text-foreground"
+          >
+            {expanded ? (
+              <ChevronDown className="size-3" />
+            ) : (
+              <ChevronRight className="size-3" />
+            )}
+          </button>
+        )}
         <button
-          key={project.name}
           type="button"
-          onClick={() => onSelect(project.name)}
-          className={cn(
-            "flex w-full items-center gap-3 px-3 py-2 text-left text-[13px] transition-colors",
-            i > 0 && "border-t border-border/40",
-            selected === project.name
-              ? "bg-primary/8 text-foreground"
-              : "text-muted-foreground hover:bg-surface-1/50 hover:text-foreground",
-          )}
+          onClick={() => onSelect({ cwd: project.cwd, label: project.name })}
+          className="flex flex-1 items-center gap-2 py-2 pr-3"
         >
           <Folder className="size-3.5 shrink-0" />
           <span className="font-medium">{project.name}</span>
+          {project.branch && (
+            <span className="flex items-center gap-1 text-[11px] opacity-60">
+              <GitBranch className="size-3" />
+              {project.branch}
+            </span>
+          )}
           <span className="ml-auto truncate text-[11px] opacity-60">{project.cwd}</span>
         </button>
-      ))}
-    </div>
+      </div>
+
+      {expanded && (
+        <>
+          {children.map((child) => (
+            <button
+              key={child.cwd}
+              type="button"
+              onClick={() => onSelect({ cwd: child.cwd, label: `${project.name} / ${child.branch ?? child.name}` })}
+              className={cn(
+                "flex w-full items-center gap-2 border-t border-border/40 py-2 pl-9 pr-3 text-left text-[13px] transition-colors",
+                selectedCwd === child.cwd
+                  ? "bg-primary/8 text-foreground"
+                  : "text-muted-foreground hover:bg-surface-1/50 hover:text-foreground",
+              )}
+            >
+              <GitBranch className="size-3.5 shrink-0" />
+              <span className="font-medium">{child.branch ?? child.name}</span>
+              <span className="ml-auto truncate text-[11px] opacity-60">{child.cwd}</span>
+            </button>
+          ))}
+          {worktrees.map((wt) => {
+            if (children.some((c) => c.cwd === wt.path)) return null;
+            return (
+              <button
+                key={wt.path}
+                type="button"
+                onClick={() => onSelect({ cwd: wt.path, label: `${project.name} / ${wt.branch ?? "detached"}` })}
+                className={cn(
+                  "flex w-full items-center gap-2 border-t border-border/40 py-2 pl-9 pr-3 text-left text-[13px] transition-colors",
+                  selectedCwd === wt.path
+                    ? "bg-primary/8 text-foreground"
+                    : "text-muted-foreground hover:bg-surface-1/50 hover:text-foreground",
+                )}
+              >
+                <GitBranch className="size-3.5 shrink-0 opacity-50" />
+                <span className="font-medium">{wt.branch ?? "detached"}</span>
+                <span className="ml-auto truncate text-[11px] opacity-60">{wt.path}</span>
+              </button>
+            );
+          })}
+          {loadingWorktrees && (
+            <div className="border-t border-border/40 py-2 pl-9 pr-3 text-[11px] text-muted-foreground/60">
+              Loading worktrees...
+            </div>
+          )}
+        </>
+      )}
+    </>
   );
 }
 

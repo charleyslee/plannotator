@@ -489,6 +489,12 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
     const request = createRequest.request;
     const cwd = getRequestCwd(request);
     const project = (await detectProjectName(cwd)) ?? "_unknown";
+    let branch: string | undefined;
+    try {
+      const { execSync } = await import("child_process");
+      const b = execSync("git rev-parse --abbrev-ref HEAD", { cwd, encoding: "utf-8" }).trim();
+      if (b && b !== "HEAD") branch = b;
+    } catch {}
     try {
       const tmp = tmpdir();
       if (!cwd.startsWith(tmp)) registerProject(project, cwd);
@@ -530,7 +536,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         url,
         project,
         cwd,
-        label: `plugin-plan-${request.origin}-${project}`,
+        label: branch ? `plugin-plan-${request.origin}-${project}-${branch}` : `plugin-plan-${request.origin}-${project}`,
         origin: request.origin,
         ttlMs,
         handleRequest: session.handleRequest,
@@ -654,7 +660,7 @@ export function createDaemonSessionFactory(options: DaemonSessionFactoryOptions)
         cwd,
         label: input.prMetadata
           ? `plugin-${getMRLabel(input.prMetadata).toLowerCase()}-review-${getDisplayRepo(input.prMetadata)}${getMRNumberLabel(input.prMetadata)}`
-          : `plugin-review-${request.origin}-${project}`,
+          : branch ? `plugin-review-${request.origin}-${project}-${branch}` : `plugin-review-${request.origin}-${project}`,
         origin: request.origin,
         ttlMs,
         handleRequest: session.handleRequest,

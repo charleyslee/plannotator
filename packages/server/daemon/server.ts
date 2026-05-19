@@ -509,6 +509,35 @@ export function createDaemonFetchHandler(options: DaemonServerOptions): DaemonFe
         return json({ ok: true });
       }
 
+      if (url.pathname === "/daemon/projects/worktrees" && req.method === "GET") {
+        const cwd = url.searchParams.get("cwd");
+        if (!cwd) {
+          return json(createDaemonErrorResponse("invalid-request", "Worktree listing requires a cwd query parameter."), { status: 400 });
+        }
+        try {
+          const { execSync } = await import("child_process");
+          const raw = execSync("git worktree list --porcelain", { cwd, encoding: "utf-8" });
+          const worktrees: { path: string; branch: string | null; head: string }[] = [];
+          let current: { path?: string; branch?: string | null; head?: string } = {};
+          for (const line of raw.split("\n")) {
+            if (line.startsWith("worktree ")) {
+              if (current.path) worktrees.push({ path: current.path, branch: current.branch ?? null, head: current.head ?? "" });
+              current = { path: line.slice(9) };
+            } else if (line.startsWith("HEAD ")) {
+              current.head = line.slice(5);
+            } else if (line.startsWith("branch ")) {
+              current.branch = line.slice(7).replace(/^refs\/heads\//, "");
+            } else if (line === "detached") {
+              current.branch = null;
+            }
+          }
+          if (current.path) worktrees.push({ path: current.path, branch: current.branch ?? null, head: current.head ?? "" });
+          return json({ ok: true, worktrees });
+        } catch (err) {
+          return json({ ok: true, worktrees: [] });
+        }
+      }
+
       const browserSession = sessionFromPath(url.pathname);
       if (browserSession) {
         let record = store.get(browserSession.id);

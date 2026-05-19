@@ -132,6 +132,8 @@ export interface DaemonProjectEntry {
   name: string;
   cwd: string;
   lastSeen: string;
+  parentCwd?: string;
+  branch?: string;
 }
 
 export interface DaemonProjectListResponse {
