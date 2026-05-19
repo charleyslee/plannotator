@@ -664,28 +664,27 @@ const App: React.FC = () => {
     return () => ro.disconnect();
   }, [isLoading, isSharedSession]);
 
-  // Auto-save annotation drafts
-  const { draftBanner, restoreDraft, dismissDraft } = useAnnotationDraft({
+  // Auto-save and auto-restore annotation drafts
+  useAnnotationDraft({
     annotations: allAnnotations,
     codeAnnotations,
     globalAttachments,
     isApiMode: isApiMode && !goalSetupMode,
     isSharedSession,
     submitted: !!submitted,
+    onRestore: useCallback((restored, restoredCode, restoredGlobal) => {
+      if (restored.length > 0 || restoredCode.length > 0 || restoredGlobal.length > 0) {
+        setAnnotations(restored);
+        setCodeAnnotations(restoredCode);
+        if (restoredGlobal.length > 0) setGlobalAttachments(restoredGlobal);
+        const totalCount = restored.length + restoredCode.length + restoredGlobal.length;
+        toast(`Restored ${totalCount} annotation${totalCount !== 1 ? 's' : ''}`);
+        setTimeout(() => {
+          viewerRef.current?.applySharedAnnotations(restored.filter(a => !a.diffContext));
+        }, 100);
+      }
+    }, []),
   });
-
-  const handleRestoreDraft = React.useCallback(() => {
-    const { annotations: restored, codeAnnotations: restoredCode, globalAttachments: restoredGlobal } = restoreDraft();
-    if (restored.length > 0 || restoredCode.length > 0 || restoredGlobal.length > 0) {
-      setAnnotations(restored);
-      setCodeAnnotations(restoredCode);
-      if (restoredGlobal.length > 0) setGlobalAttachments(restoredGlobal);
-      // Apply highlights to DOM after a tick
-      setTimeout(() => {
-        viewerRef.current?.applySharedAnnotations(restored.filter(a => !a.diffContext));
-      }, 100);
-    }
-  }, [restoreDraft]);
 
   // Fetch available agents for OpenCode (for validation on approve)
   const { agents: availableAgents, validateAgent, getAgentWarning } = useAgents(origin);
@@ -1830,16 +1829,6 @@ const App: React.FC = () => {
             data-print-region="document"
             onViewportReady={handleViewportReady}
           >
-            <ConfirmDialog
-              isOpen={!!draftBanner}
-              onClose={dismissDraft}
-              onConfirm={handleRestoreDraft}
-              title="Draft Recovered"
-              message={draftBanner ? `Found ${draftBanner.count} annotation${draftBanner.count !== 1 ? 's' : ''} from ${draftBanner.timeAgo}. Would you like to restore them?` : ''}
-              confirmText="Restore"
-              cancelText="Dismiss"
-              showCancel
-            />
             <div ref={planAreaRef} className="min-h-full flex flex-col items-center px-2 py-3 md:px-10 md:py-8 xl:px-16 relative z-10">
               {/* Sticky header lane — ghost bar that pins the toolstrip +
                   badges at top: 12px once the user scrolls. Invisible at top
