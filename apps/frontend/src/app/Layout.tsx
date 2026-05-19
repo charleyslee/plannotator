@@ -76,10 +76,13 @@ function LayoutContent() {
 }
 
 export function Layout() {
+  const matchRoute = useMatchRoute();
+  const initiallyOnSession = !!matchRoute({ to: "/s/$sessionId", fuzzy: true });
+
   return (
     <TooltipProvider delayDuration={200} skipDelayDuration={100}>
       <SidebarProvider
-        defaultOpen={false}
+        defaultOpen={!initiallyOnSession}
         style={{ "--sidebar-width": "16rem" } as React.CSSProperties}
       >
         <LayoutContent />
