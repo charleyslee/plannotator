@@ -53,7 +53,7 @@ export function AppSidebar({ onAddProject }: AppSidebarProps) {
   }, [resolvedMode, setMode]);
 
   return (
-    <Sidebar collapsible="offcanvas" className="border-r">
+    <Sidebar collapsible="offcanvas">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>

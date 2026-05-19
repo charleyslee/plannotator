@@ -52,7 +52,7 @@ export function Layout() {
           {Object.values(visitedSessions).map(({ sessionId, bootstrap }) => (
             <div
               key={sessionId}
-              className="absolute inset-0 overflow-hidden rounded-tl-xl"
+              className="absolute inset-0 overflow-hidden rounded-tl-xl border-l border-border/50"
               style={{
                 visibility: sessionId === activeSessionId && isOnSession ? "visible" : "hidden",
                 zIndex: sessionId === activeSessionId && isOnSession ? 1 : 0,
