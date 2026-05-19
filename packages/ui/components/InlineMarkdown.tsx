@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import hljs from "highlight.js";
+import { useSessionFetch } from '../hooks/useSessionFetch';
 import { isCodeFilePath, isCodeFilePathStrict, CODE_PATH_BARE_REGEX, parseCodePath } from "@plannotator/shared/code-file";
 import { transformPlainText } from "../utils/inlineTransforms";
 import { getImageSrc } from "./ImageThumbnail";
@@ -120,6 +121,7 @@ const CodeFileLink: React.FC<{
   onOpenCodeFile: (path: string) => void;
   baseDir?: string;
 }> = ({ candidate, display, onOpenCodeFile, baseDir }) => {
+  const fetch = useSessionFetch();
   const validation = useCodePathValidation();
   const gate = gateCodePath(candidate, validation);
   const [pickerOpen, setPickerOpen] = useState(false);

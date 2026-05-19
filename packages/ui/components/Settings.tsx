@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSessionFetch } from '../hooks/useSessionFetch';
 import { createPortal } from 'react-dom';
 import type { Origin } from '@plannotator/shared/agents';
 import type { DiffLineBgIntensity } from '@plannotator/shared/config';
@@ -600,6 +601,7 @@ const CommentsTab: React.FC = () => {
 };
 
 export const Settings: React.FC<SettingsProps> = ({ taterMode, onTaterModeChange, onIdentityChange, origin, mode = 'plan', onUIPreferencesChange, externalOpen, onExternalClose, aiProviders = [], gitUser }) => {
+  const fetch = useSessionFetch();
   const [showDialog, setShowDialog] = useState(false);
   const [themePreview, setThemePreview] = useState(false);
 

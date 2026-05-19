@@ -7,6 +7,7 @@
  */
 
 import { useState, useCallback, useRef } from "react";
+import { useSessionFetch } from './useSessionFetch';
 import type { Annotation, ImageAttachment } from "../types";
 import type { ViewerHandle } from "../components/Viewer";
 import type { SidebarTab } from "./useSidebar";
@@ -68,6 +69,7 @@ export interface UseLinkedDocReturn {
 const HIGHLIGHT_REAPPLY_DELAY = 100;
 
 export function useLinkedDoc(options: UseLinkedDocOptions): UseLinkedDocReturn {
+  const fetch = useSessionFetch();
   const {
     markdown,
     annotations,

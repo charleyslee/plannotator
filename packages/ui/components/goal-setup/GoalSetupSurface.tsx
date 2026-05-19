@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSessionFetch } from '../../hooks/useSessionFetch';
 import {
   Check,
   ChevronDown,
@@ -132,6 +133,7 @@ const InterviewSurface = React.forwardRef<GoalSetupSurfaceHandle, {
   onSubmitted?: () => void;
   onActionStateChange?: (state: GoalSetupActionState) => void;
 }>(({ bundle, onSubmitted, onActionStateChange }, ref) => {
+  const fetch = useSessionFetch();
   const [answers, setAnswers] = useState<Record<string, GoalSetupQuestionAnswer>>(() =>
     Object.fromEntries(
       bundle.questions.map((question) => [
@@ -814,6 +816,7 @@ const FactsSurface = React.forwardRef<GoalSetupSurfaceHandle, {
   onSubmitted?: () => void;
   onActionStateChange?: (state: GoalSetupActionState) => void;
 }>(({ bundle, onSubmitted, onActionStateChange }, ref) => {
+  const fetch = useSessionFetch();
   // Product choice: facts stay visible after acceptance so later review passes keep context.
   // `showAccepted` is legacy model state and does not hide rows in this surface.
   const [facts, setFacts] = useState<GoalSetupFactResult[]>(() =>
