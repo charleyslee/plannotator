@@ -731,30 +731,6 @@ diffs-container {
   background: oklch(from var(--warning) l c h / 0.3);
 }
 
-/* Toast animations */
-@keyframes cr-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes cr-slide-in-from-bottom-2 {
-  from { transform: translateY(0.5rem) translateX(-50%); }
-  to { transform: translateY(0) translateX(-50%); }
-}
-
-.animate-in {
-  animation-duration: 200ms;
-  animation-timing-function: ease-out;
-  animation-fill-mode: both;
-}
-
-.fade-in {
-  animation-name: cr-fade-in;
-}
-
-.slide-in-from-bottom-2 {
-  animation-name: cr-slide-in-from-bottom-2;
-}
 
 /* AI Chat — toolbar divider, bubbles, line references, streaming cursor */
 
