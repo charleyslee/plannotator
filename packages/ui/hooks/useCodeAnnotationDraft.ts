@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CodeAnnotation } from '../types';
+import { useSessionFetch } from './useSessionFetch';
 
 const DEBOUNCE_MS = 500;
 
@@ -46,6 +47,7 @@ export function useCodeAnnotationDraft({
   isApiMode,
   submitted,
 }: UseCodeAnnotationDraftOptions): UseCodeAnnotationDraftResult {
+  const fetch = useSessionFetch();
   const [draftBanner, setDraftBanner] = useState<{ count: number; viewedCount: number; timeAgo: string } | null>(null);
   const draftDataRef = useRef<DraftData | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

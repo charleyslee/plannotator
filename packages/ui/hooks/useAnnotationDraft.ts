@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Annotation, CodeAnnotation, ImageAttachment } from '../types';
 import { fromShareable, parseShareableImages } from '../utils/sharing';
 import type { ShareableAnnotation } from '../utils/sharing';
+import { useSessionFetch } from './useSessionFetch';
 
 const DEBOUNCE_MS = 500;
 
@@ -69,6 +70,7 @@ export function useAnnotationDraft({
   isSharedSession,
   submitted,
 }: UseAnnotationDraftOptions): UseAnnotationDraftResult {
+  const fetch = useSessionFetch();
   const [draftBanner, setDraftBanner] = useState<{ count: number; timeAgo: string } | null>(null);
   const draftDataRef = useRef<{ annotations: Annotation[]; codeAnnotations: CodeAnnotation[]; globalAttachments: ImageAttachment[] } | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

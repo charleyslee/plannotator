@@ -11,6 +11,7 @@ import {
   type PlanDiffBlock,
   type PlanDiffStats,
 } from "../utils/planDiffEngine";
+import { useSessionFetch } from "./useSessionFetch";
 
 export interface VersionInfo {
   version: number;
@@ -53,6 +54,7 @@ export function usePlanDiff(
   initialPreviousPlan: string | null,
   versionInfo: VersionInfo | null
 ): UsePlanDiffReturn {
+  const fetch = useSessionFetch();
   const [diffBasePlan, setDiffBasePlan] = useState<string | null>(
     initialPreviousPlan
   );
