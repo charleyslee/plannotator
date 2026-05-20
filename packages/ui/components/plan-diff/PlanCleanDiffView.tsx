@@ -50,6 +50,7 @@ export const PlanCleanDiffView: React.FC<PlanCleanDiffViewProps> = ({
   wordLevel = true,
   containerRef,
 }) => {
+  const rootRef = useRef<HTMLDivElement>(null);
   const modeRef = useRef<EditorMode>(mode);
   const onAddAnnotationRef = useRef(onAddAnnotation);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -102,7 +103,7 @@ export const PlanCleanDiffView: React.FC<PlanCleanDiffViewProps> = ({
     if (!ann?.blockId?.startsWith('diff-block-')) return;
 
     const idx = ann.blockId.replace('diff-block-', '');
-    const root = containerRef?.current ?? document;
+    const root = containerRef?.current ?? rootRef.current ?? document;
     const el = root.querySelector(`[data-diff-block-index="${idx}"]`);
     if (!el) return;
 
@@ -288,7 +289,7 @@ export const PlanCleanDiffView: React.FC<PlanCleanDiffViewProps> = ({
   const isBlockAnnotated = (index: number) => annotatedBlockIds.has(`diff-block-${index}`);
 
   return (
-    <div className="space-y-1">
+    <div ref={rootRef} className="space-y-1">
       {blocks.map((block, index) => (
         <DiffBlockRenderer
           key={index}

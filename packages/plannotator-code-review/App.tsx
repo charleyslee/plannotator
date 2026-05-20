@@ -179,14 +179,17 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
     }
     if (diffFontSize) {
       el.style.setProperty('--diff-font-size-override', diffFontSize);
+      el.classList.add('has-font-size-override');
     } else {
       el.style.removeProperty('--diff-font-size-override');
+      el.classList.remove('has-font-size-override');
     }
     el.style.setProperty('--diffs-tab-size', String(diffTabSize));
     return () => {
       el.style.removeProperty('--diff-font-override');
       el.style.removeProperty('--diff-font-size-override');
       el.style.removeProperty('--diffs-tab-size');
+      el.classList.remove('has-font-size-override');
     };
   }, [diffFontFamily, diffFontSize, diffTabSize]);
 
