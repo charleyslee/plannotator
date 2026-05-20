@@ -49,7 +49,6 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
     <div className="isolate flex h-full flex-col bg-muted">
       <nav className="flex h-10 shrink-0 items-center gap-2 px-3">
         <SidebarTrigger className="-ml-1" />
-        <span className="text-sm font-semibold">Plannotator</span>
       </nav>
 
       <div className="flex-1 overflow-hidden p-2 pt-0">
