@@ -281,6 +281,7 @@
         "react": "^19.2.3",
         "react-dom": "^19.2.3",
         "tailwindcss": "^4.1.18",
+        "zustand": "^5.0.13",
       },
     },
     "packages/plannotator-plan-review": {

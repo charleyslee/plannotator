@@ -80,6 +80,8 @@ import { altKey } from '@plannotator/ui/utils/platform';
 import { TourDialog } from './components/tour/TourDialog';
 import { DEMO_TOUR_ID } from './demoTour';
 import { useSessionFetch } from '@plannotator/ui/hooks/useSessionFetch';
+import { ReviewStoreProvider, useReviewStore, useReviewStoreApi } from './store';
+import { selectAllAnnotations } from './store/selectors';
 
 declare const __APP_VERSION__: string;
 
@@ -158,15 +160,16 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
     if (!rootRef.current) return true;
     return getComputedStyle(rootRef.current).visibility !== 'hidden';
   }, []);
+  const storeApi = useReviewStoreApi();
+  const localAnnotations = useReviewStore(s => s.localAnnotations);
+  const selectedAnnotationId = useReviewStore(s => s.selectedAnnotationId);
+  const pendingSelection = useReviewStore(s => s.pendingSelection);
   const [diffData, setDiffData] = useState<DiffData | null>(null);
   const [files, setFiles] = useState<DiffFile[]>([]);
   const [activeFileIndex, setActiveFileIndex] = useState(0);
-  const [annotations, setAnnotations] = useState<CodeAnnotation[]>([]);
-  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [isAllFilesActive, setIsAllFilesActive] = useState(false);
   const [isDiffPanelActive, setIsDiffPanelActive] = useState(false);
   const [allFilesVisibleFile, setAllFilesVisibleFile] = useState<string | null>(null);
-  const [pendingSelection, setPendingSelection] = useState<SelectedLineRange | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showWorktreeDialog, setShowWorktreeDialog] = useState(false);
   const [openSettingsMenu, setOpenSettingsMenu] = useState(false);
@@ -290,8 +293,8 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
   const identity = useConfigValue('displayName');
 
   const clearPendingSelection = useCallback(() => {
-    setPendingSelection(null);
-  }, []);
+    storeApi.getState().setPendingSelection(null);
+  }, [storeApi]);
 
   // VS Code editor annotations (only polls when inside VS Code webview)
   const { editorAnnotations, deleteEditorAnnotation } = useEditorAnnotations();
@@ -313,6 +316,17 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
   const filesRef = useRef(files);
   filesRef.current = files;
   const needsInitialDiffPanel = useRef(true);
+
+  // Sync data into the review store for panels that read from it directly
+  useEffect(() => { storeApi.getState().setExternalAnnotations(externalAnnotations); }, [storeApi, externalAnnotations]);
+  useEffect(() => { storeApi.getState().setFiles(files); }, [storeApi, files]);
+  useEffect(() => {
+    storeApi.getState().setDiffOptions({
+      diffStyle, diffOverflow, diffIndicators, lineDiffType: diffLineDiffType,
+      disableLineNumbers: !diffShowLineNumbers, disableBackground: !diffShowBackground,
+      fontFamily: diffFontFamily || undefined, fontSize: diffFontSize || undefined,
+    });
+  }, [storeApi, diffStyle, diffOverflow, diffIndicators, diffLineDiffType, diffShowLineNumbers, diffShowBackground, diffFontFamily, diffFontSize]);
 
   // PR context (lifted from sidebar so center dock PR panels can access it)
   const { prContext, isLoading: isPRContextLoading, error: prContextError, fetchContext: fetchPRContext } = usePRContext(prMetadata ?? null);
@@ -346,12 +360,12 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
         return;
       }
 
-      setPendingSelection(null);
+      storeApi.getState().setPendingSelection(null);
       existing.api.updateParameters({ filePath });
       existing.api.setTitle(getFileTabTitle(file.path));
       existing.api.setActive();
     } else {
-      setPendingSelection(null);
+      storeApi.getState().setPendingSelection(null);
       dockApi.addPanel({
         id: REVIEW_DIFF_PANEL_ID,
         component: REVIEW_PANEL_TYPES.DIFF,
@@ -402,9 +416,9 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
   // type, and originalText). This avoids the timing issues of an effect-based
   // cleanup — draft-restored externals persist until live events re-deliver them.
   const allAnnotations = useMemo(() => {
-    if (externalAnnotations.length === 0) return annotations;
+    if (externalAnnotations.length === 0) return localAnnotations;
 
-    const local = annotations.filter(a => {
+    const local = localAnnotations.filter(a => {
       if (!a.source) return true;
       return !externalAnnotations.some(ext =>
         ext.source === a.source &&
@@ -417,7 +431,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
     });
 
     return [...local, ...externalAnnotations];
-  }, [annotations, externalAnnotations]);
+  }, [localAnnotations, externalAnnotations]);
   const allAnnotationsRef = useRef(allAnnotations);
   allAnnotationsRef.current = allAnnotations;
 
@@ -427,11 +441,11 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
     viewedFiles,
     isApiMode: !!origin,
     submitted: !!submitted,
-    onRestore: useCallback((restoredAnnotations, restoredViewed) => {
-      if (restoredAnnotations.length > 0) setAnnotations(restoredAnnotations);
+    onRestore: useCallback((restoredAnnotations: CodeAnnotation[], restoredViewed: string[]) => {
+      if (restoredAnnotations.length > 0) storeApi.getState().setLocalAnnotations(restoredAnnotations);
       if (restoredViewed.length > 0) setViewedFiles(new Set(restoredViewed));
       toast(`Restored ${restoredAnnotations.length} annotation${restoredAnnotations.length !== 1 ? 's' : ''}${restoredViewed.length > 0 ? ` and ${restoredViewed.length} viewed file${restoredViewed.length !== 1 ? 's' : ''}` : ''}`);
-    }, []),
+    }, [storeApi]),
   });
 
   // AI Chat
@@ -545,12 +559,12 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
   const handleScrollToAILines = useCallback((filePath: string, lineStart: number, lineEnd: number, side: 'old' | 'new') => {
     openDiffFile(filePath);
     // Set a selection to highlight the lines
-    setPendingSelection({
+    storeApi.getState().setPendingSelection({
       start: lineStart,
       end: lineEnd,
       side: side === 'new' ? 'additions' : 'deletions',
     });
-  }, [openDiffFile]);
+  }, [storeApi, openDiffFile]);
 
 
   // AI messages overlapping the current selection (for toolbar history)
@@ -881,8 +895,8 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
 
   // Handle line selection from diff viewer
   const handleLineSelection = useCallback((range: SelectedLineRange | null) => {
-    setPendingSelection(range);
-  }, []);
+    storeApi.getState().setPendingSelection(range);
+  }, [storeApi]);
 
   const handleAddAnnotationForFile = useCallback((
     filePath: string,
@@ -918,9 +932,8 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
       conventionalLabel,
       decorations,
     };
-    setAnnotations(prev => [...prev, withPRContext(newAnnotation)]);
-    setPendingSelection(null);
-  }, [pendingSelection, identity, withPRContext]);
+    storeApi.getState().addAnnotation(withPRContext(newAnnotation));
+  }, [storeApi, pendingSelection, identity, withPRContext]);
 
   const handleAddAnnotation = useCallback((
     type: CodeAnnotationType,
@@ -953,8 +966,8 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
       author: identity,
     };
 
-    setAnnotations(prev => [...prev, withPRContext(newAnnotation)]);
-  }, [files, activeFileIndex, identity, withPRContext]);
+    storeApi.getState().addAnnotation(withPRContext(newAnnotation));
+  }, [storeApi, files, activeFileIndex, identity, withPRContext]);
 
   const handleAddFileCommentForFile = useCallback((filePath: string, text: string) => {
     const trimmed = text.trim();
@@ -973,8 +986,8 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
       author: identity,
     };
 
-    setAnnotations(prev => [...prev, withPRContext(newAnnotation)]);
-  }, [identity, withPRContext]);
+    storeApi.getState().addAnnotation(withPRContext(newAnnotation));
+  }, [storeApi, identity, withPRContext]);
 
   // Edit annotation
   const handleEditAnnotation = useCallback((
@@ -998,30 +1011,27 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
       updateExternalAnnotation(id, updates);
       return;
     }
-    setAnnotations(prev => prev.map(a =>
-      a.id === id ? { ...a, ...updates } : a
-    ));
-  }, [updateExternalAnnotation, externalAnnotations]);
+    storeApi.getState().editAnnotation(id, updates);
+  }, [storeApi, updateExternalAnnotation, externalAnnotations]);
 
   const handleDeleteAnnotation = useCallback((id: string) => {
     const ann = allAnnotationsRef.current.find(a => a.id === id);
     if (ann?.source && externalAnnotations.some(e => e.id === id)) {
       deleteExternalAnnotation(id);
-      if (selectedAnnotationId === id) setSelectedAnnotationId(null);
+      if (selectedAnnotationId === id) storeApi.getState().selectAnnotation(null);
       return;
     }
-    setAnnotations(prev => prev.filter(a => a.id !== id));
-    if (selectedAnnotationId === id) {
-      setSelectedAnnotationId(null);
-    }
-  }, [selectedAnnotationId, deleteExternalAnnotation, externalAnnotations]);
+    storeApi.getState().deleteAnnotation(id);
+  }, [storeApi, selectedAnnotationId, deleteExternalAnnotation, externalAnnotations]);
 
   // Handle identity change - update author on existing annotations
   const handleIdentityChange = useCallback((oldIdentity: string, newIdentity: string) => {
-    setAnnotations(prev => prev.map(ann =>
-      ann.author === oldIdentity ? { ...ann, author: newIdentity } : ann
-    ));
-  }, []);
+    storeApi.getState().setLocalAnnotations(
+      storeApi.getState().localAnnotations.map(ann =>
+        ann.author === oldIdentity ? { ...ann, author: newIdentity } : ann
+      ),
+    );
+  }, [storeApi]);
 
   // Switch file in the dedicated center diff panel.
   const handleFilePreview = useCallback((index: number) => {
@@ -1136,7 +1146,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
       const preserved = currentFile ? nextFiles.findIndex(f => f.path === currentFile.path) : -1;
       setActiveFileIndex(preserved >= 0 ? preserved : 0);
     }
-    setPendingSelection(null);
+    storeApi.getState().setPendingSelection(null);
     updatePRSession({
       ...(data.prMetadata && { prMetadata: data.prMetadata }),
       ...(data.prStackInfo !== undefined && { prStackInfo: data.prStackInfo }),
@@ -1241,7 +1251,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
           });
         }
         setActiveFileIndex(0);
-        setPendingSelection(null);
+        storeApi.getState().setPendingSelection(null);
         resetStagedFiles();
       }
       setDiffError(data.error || null);
@@ -1322,19 +1332,16 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
   // Select annotation - switches file if needed and scrolls to it
   const handleSelectAnnotation = useCallback((id: string | null) => {
     if (!id) {
-      setSelectedAnnotationId(null);
+      storeApi.getState().selectAnnotation(null);
       return;
     }
 
-    // Find the annotation
     const annotation = allAnnotations.find(a => a.id === id);
     if (!annotation) {
-      setSelectedAnnotationId(id);
+      storeApi.getState().selectAnnotation(id);
       return;
     }
 
-    // In all-files mode, just set the selection — the panel's scroll-to-annotation
-    // effect handles expanding and scrolling. In single-file mode, switch to the file.
     if (!isAllFilesActive) {
       const fileIndex = files.findIndex(f => f.path === annotation.filePath);
       if (fileIndex !== -1) {
@@ -1342,8 +1349,8 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
       }
     }
 
-    setSelectedAnnotationId(id);
-  }, [allAnnotations, files, isAllFilesActive, handleFileSwitch]);
+    storeApi.getState().selectAnnotation(id);
+  }, [storeApi, allAnnotations, files, isAllFilesActive, handleFileSwitch]);
 
   // Diff context bundled into local-mode feedback headers so the receiving
   // agent knows which diff the annotations are anchored to. Uses committedBase
@@ -2545,6 +2552,10 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
 export default ReviewApp;
 
 export function ReviewAppEmbedded({ headerLeft, onOpenSettings }: { headerLeft?: React.ReactNode; onOpenSettings?: () => void }) {
-  return <ReviewApp __embedded headerLeft={headerLeft} onOpenSettings={onOpenSettings} />;
+  return (
+    <ReviewStoreProvider>
+      <ReviewApp __embedded headerLeft={headerLeft} onOpenSettings={onOpenSettings} />
+    </ReviewStoreProvider>
+  );
 }
 
