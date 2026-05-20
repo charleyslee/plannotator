@@ -628,7 +628,7 @@ export function createDaemonFetchHandler(options: DaemonServerOptions): DaemonFe
         return json({ ok: true, gitUser });
       }
 
-      if (url.pathname === "/daemon/vaults" && req.method === "GET") {
+      if ((url.pathname === "/daemon/vaults" || url.pathname === "/daemon/obsidian/vaults") && req.method === "GET") {
         const vaults = detectObsidianVaults();
         return json({ ok: true, vaults });
       }
