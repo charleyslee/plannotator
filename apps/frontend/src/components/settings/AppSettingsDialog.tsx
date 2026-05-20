@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Settings } from "lucide-react";
 import {
   Dialog,
@@ -69,6 +70,19 @@ export function AppSettingsDialog() {
   const open = useAppStore((s) => s.settingsOpen);
   const setOpen = useAppStore((s) => s.setSettingsOpen);
   const [activeTab, setActiveTab] = useState("general");
+  const [themePreview, setThemePreview] = useState(false);
+
+  useEffect(() => {
+    if (!themePreview) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setThemePreview(false);
+        setOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [themePreview, setOpen]);
 
   // Force re-mount of tab content when dialog opens to ensure fresh state
   const [mountKey, setMountKey] = useState(0);
@@ -133,7 +147,7 @@ export function AppSettingsDialog() {
     saveAIProviderSettings({ ...current, providerId });
   }, []);
 
-  return (
+  return (<>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="p-0">
         <DialogTitle className="sr-only">Settings</DialogTitle>
@@ -187,7 +201,7 @@ export function AppSettingsDialog() {
               <GeneralTab gitUser={gitUser} />
             </TabsContent>
             <TabsContent value="theme">
-              <ThemeTab />
+              <ThemeTab onPreview={() => { setOpen(false); setThemePreview(true); }} />
             </TabsContent>
             <TabsContent value="shortcuts">
               <div className="space-y-6">
@@ -254,5 +268,28 @@ export function AppSettingsDialog() {
         </Tabs>
       </DialogContent>
     </Dialog>
+
+    {themePreview && createPortal(
+      <div className="fixed inset-0 z-[110] flex flex-col pointer-events-none">
+        <div className="flex-1" />
+        <div className="pointer-events-auto w-full bg-card border-t-2 border-primary/30 shadow-[0_-4px_20px_rgba(0,0,0,0.4)] flex flex-col max-h-[35vh] overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Theme Preview</span>
+            <button
+              type="button"
+              onClick={() => { setThemePreview(false); setOpen(true); }}
+              className="px-3 py-1 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              Done
+            </button>
+          </div>
+          <div className="p-3 overflow-y-auto flex-1 min-h-0">
+            <ThemeTab compact />
+          </div>
+        </div>
+      </div>,
+      document.body,
+    )}
+  </>
   );
 }
