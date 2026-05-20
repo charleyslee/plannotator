@@ -55,7 +55,10 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
         <div className="h-full overflow-hidden rounded-xl bg-card shadow-[var(--card-shadow)]">
           <main className="flex h-full items-center justify-center overflow-auto">
             <div className="w-full max-w-2xl px-6">
-              <pre className="mb-8 select-none overflow-x-auto text-[5px] leading-[1.2] text-foreground/70 sm:text-[6px] md:text-[7px]" aria-hidden="true">
+              <pre
+                className="mb-8 select-none overflow-x-auto text-[5px] leading-[1.2] text-foreground/70 sm:text-[6px] md:text-[7px]"
+                aria-hidden="true"
+              >
                 {ASCII_BANNER}
               </pre>
 
@@ -157,8 +160,7 @@ function ProjectTable({
   onSelect: (selection: Selection) => void;
 }) {
   const topLevel = projects.filter((p) => !p.parentCwd);
-  const worktreeChildren = (parentCwd: string) =>
-    projects.filter((p) => p.parentCwd === parentCwd);
+  const worktreeChildren = (parentCwd: string) => projects.filter((p) => p.parentCwd === parentCwd);
 
   return (
     <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
@@ -218,9 +220,7 @@ function ProjectNode({
         className={cn(
           "flex w-full items-center gap-3 px-3 py-2 text-left text-[13px]",
           !isFirst && "border-t border-border",
-          isSelected
-            ? "bg-primary/10 text-foreground"
-            : "text-foreground hover:bg-surface-1",
+          isSelected ? "bg-primary/10 text-foreground" : "text-foreground hover:bg-surface-1",
         )}
       >
         <Folder className="size-3.5 shrink-0" />
@@ -247,13 +247,20 @@ function ProjectNode({
       {expanded && (
         <>
           <div className="border-t border-border py-1.5 pl-9 pr-3">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Worktrees</span>
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Worktrees
+            </span>
           </div>
           {children.map((child) => (
             <button
               key={child.cwd}
               type="button"
-              onClick={() => onSelect({ cwd: child.cwd, label: `${project.name} / ${child.branch ?? child.name}` })}
+              onClick={() =>
+                onSelect({
+                  cwd: child.cwd,
+                  label: `${project.name} / ${child.branch ?? child.name}`,
+                })
+              }
               className={cn(
                 "flex w-full items-center gap-2 border-t border-border py-2 pl-9 pr-3 text-left text-[13px]",
                 selectedCwd === child.cwd
@@ -262,7 +269,9 @@ function ProjectNode({
               )}
             >
               <span className="font-medium">{child.branch ?? child.name}</span>
-              <span className="ml-auto truncate text-[11px] text-muted-foreground">{child.cwd}</span>
+              <span className="ml-auto truncate text-[11px] text-muted-foreground">
+                {child.cwd}
+              </span>
             </button>
           ))}
           {worktrees.map((wt) => {
@@ -271,7 +280,9 @@ function ProjectNode({
               <button
                 key={wt.path}
                 type="button"
-                onClick={() => onSelect({ cwd: wt.path, label: `${project.name} / ${wt.branch ?? "detached"}` })}
+                onClick={() =>
+                  onSelect({ cwd: wt.path, label: `${project.name} / ${wt.branch ?? "detached"}` })
+                }
                 className={cn(
                   "flex w-full items-center gap-2 border-t border-border py-2 pl-9 pr-3 text-left text-[13px]",
                   selectedCwd === wt.path
@@ -280,7 +291,9 @@ function ProjectNode({
                 )}
               >
                 <span className="font-medium">{wt.branch ?? "detached"}</span>
-                <span className="ml-auto truncate text-[11px] text-muted-foreground">{wt.path}</span>
+                <span className="ml-auto truncate text-[11px] text-muted-foreground">
+                  {wt.path}
+                </span>
               </button>
             );
           })}

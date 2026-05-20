@@ -1,11 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Settings } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAppStore } from "../../stores/app-store";
 import { GeneralTab } from "@plannotator/ui/components/settings/GeneralTab";
@@ -94,7 +90,7 @@ export function AppSettingsDialog() {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
   const visitedSessions = useAppStore((s) => s.visitedSessions);
   const activeOrigin = activeSessionId
-    ? (visitedSessions[activeSessionId]?.bootstrap.session.origin as string | undefined) ?? null
+    ? ((visitedSessions[activeSessionId]?.bootstrap.session.origin as string | undefined) ?? null)
     : null;
 
   // Fetch git user and config from daemon on open
@@ -104,25 +100,32 @@ export function AppSettingsDialog() {
     if (!open) return;
     fetch("/daemon/git/user")
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data?.gitUser) setGitUser(data.gitUser); })
+      .then((data) => {
+        if (data?.gitUser) setGitUser(data.gitUser);
+      })
       .catch(() => {});
     fetch("/daemon/config")
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data?.config) configStore.init(data.config); })
+      .then((data) => {
+        if (data?.config) configStore.init(data.config);
+      })
       .catch(() => {});
   }, [open]);
 
   // Daemon-routed fetch for tabs that need server calls without session context
   const daemonFetch = useCallback((input: string, init?: RequestInit) => {
-    const path = typeof input === "string" && input.startsWith("/api/")
-      ? `/daemon${input.slice(4)}`
-      : input;
+    const path =
+      typeof input === "string" && input.startsWith("/api/") ? `/daemon${input.slice(4)}` : input;
     return fetch(path, init);
   }, []);
 
   // AI provider state — fetched once when dialog opens
-  const [aiProviders, setAiProviders] = useState<Array<{ id: string; name: string; capabilities: Record<string, boolean> }>>([]);
-  const [aiProviderId, setAiProviderId] = useState<string | null>(() => getAIProviderSettings().providerId);
+  const [aiProviders, setAiProviders] = useState<
+    Array<{ id: string; name: string; capabilities: Record<string, boolean> }>
+  >([]);
+  const [aiProviderId, setAiProviderId] = useState<string | null>(
+    () => getAIProviderSettings().providerId,
+  );
 
   // Re-read AI provider on each open (could have changed via per-surface settings)
   useEffect(() => {
@@ -147,149 +150,165 @@ export function AppSettingsDialog() {
     saveAIProviderSettings({ ...current, providerId });
   }, []);
 
-  return (<>
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="p-0">
-        <DialogTitle className="sr-only">Settings</DialogTitle>
-        <Tabs
-          key={mountKey}
-          value={activeTab}
-          onValueChange={setActiveTab}
-          orientation="vertical"
-          className="flex h-[min(600px,80vh)]"
-        >
-          <div className="w-44 shrink-0 border-r border-border overflow-y-auto py-2 px-2">
-            <div className="flex items-center gap-2 px-3 pb-3 pt-1">
-              <Settings className="size-4 text-muted-foreground" />
-              <span className="text-sm font-semibold">Settings</span>
+  return (
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="p-0">
+          <DialogTitle className="sr-only">Settings</DialogTitle>
+          <Tabs
+            key={mountKey}
+            value={activeTab}
+            onValueChange={setActiveTab}
+            orientation="vertical"
+            className="flex h-[min(600px,80vh)]"
+          >
+            <div className="w-44 shrink-0 border-r border-border overflow-y-auto py-2 px-2">
+              <div className="flex items-center gap-2 px-3 pb-3 pt-1">
+                <Settings className="size-4 text-muted-foreground" />
+                <span className="text-sm font-semibold">Settings</span>
+              </div>
+
+              <TabsList className="flex-col gap-0.5">
+                <SectionLabel>General</SectionLabel>
+                {GENERAL_TABS.map((tab) => (
+                  <TabsTrigger key={tab.id} value={tab.id} className="w-full justify-start h-8">
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+
+                <SectionLabel>Plan Review</SectionLabel>
+                {PLAN_TABS.map((tab) => (
+                  <TabsTrigger key={tab.id} value={tab.id} className="w-full justify-start h-8">
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+
+                <SectionLabel>Code Review</SectionLabel>
+                {REVIEW_TABS.map((tab) => (
+                  <TabsTrigger key={tab.id} value={tab.id} className="w-full justify-start h-8">
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+
+                <SectionLabel>Integrations</SectionLabel>
+                {INTEGRATION_TABS.map((tab) => (
+                  <TabsTrigger key={tab.id} value={tab.id} className="w-full justify-start h-8">
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
             </div>
 
-            <TabsList className="flex-col gap-0.5">
-              <SectionLabel>General</SectionLabel>
-              {GENERAL_TABS.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id} className="w-full justify-start h-8">
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-
-              <SectionLabel>Plan Review</SectionLabel>
-              {PLAN_TABS.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id} className="w-full justify-start h-8">
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-
-              <SectionLabel>Code Review</SectionLabel>
-              {REVIEW_TABS.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id} className="w-full justify-start h-8">
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-
-              <SectionLabel>Integrations</SectionLabel>
-              {INTEGRATION_TABS.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id} className="w-full justify-start h-8">
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-6">
-            {/* General */}
-            <TabsContent value="general">
-              <GeneralTab gitUser={gitUser} />
-            </TabsContent>
-            <TabsContent value="theme">
-              <ThemeTab onPreview={() => { setOpen(false); setThemePreview(true); }} />
-            </TabsContent>
-            <TabsContent value="shortcuts">
-              <div className="space-y-6">
-                <div>
-                  <div className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Plan Review</div>
-                  <KeyboardShortcuts mode="plan" />
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* General */}
+              <TabsContent value="general">
+                <GeneralTab gitUser={gitUser} />
+              </TabsContent>
+              <TabsContent value="theme">
+                <ThemeTab
+                  onPreview={() => {
+                    setOpen(false);
+                    setThemePreview(true);
+                  }}
+                />
+              </TabsContent>
+              <TabsContent value="shortcuts">
+                <div className="space-y-6">
+                  <div>
+                    <div className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Plan Review
+                    </div>
+                    <KeyboardShortcuts mode="plan" />
+                  </div>
+                  <div className="border-t border-border pt-6">
+                    <div className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Code Review
+                    </div>
+                    <KeyboardShortcuts mode="review" />
+                  </div>
                 </div>
-                <div className="border-t border-border pt-6">
-                  <div className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Code Review</div>
-                  <KeyboardShortcuts mode="review" />
-                </div>
+              </TabsContent>
+
+              {/* Plan Review */}
+              <TabsContent value="plan-general">
+                <PlanGeneralTab origin={activeOrigin} />
+              </TabsContent>
+              <TabsContent value="plan-display">
+                <PlanDisplayTab />
+              </TabsContent>
+              <TabsContent value="plan-saving">
+                <SavingTab onNavigateTab={setActiveTab} />
+              </TabsContent>
+              <TabsContent value="plan-labels">
+                <LabelsTab />
+              </TabsContent>
+              <TabsContent value="plan-hooks">
+                <HooksTab fetchFn={daemonFetch} />
+              </TabsContent>
+
+              {/* Code Review */}
+              <TabsContent value="review-git">
+                <GitTab />
+              </TabsContent>
+              <TabsContent value="review-display">
+                <ReviewDisplayTab />
+              </TabsContent>
+              <TabsContent value="review-comments">
+                <CommentsTab />
+              </TabsContent>
+              <TabsContent value="review-ai">
+                <AISettingsTab
+                  providers={aiProviders}
+                  selectedProviderId={aiProviderId}
+                  onProviderChange={handleAiProviderChange}
+                />
+              </TabsContent>
+
+              {/* Integrations */}
+              <TabsContent value="int-files">
+                <FilesTab />
+              </TabsContent>
+              <TabsContent value="int-obsidian">
+                <ObsidianTab fetchFn={daemonFetch} />
+              </TabsContent>
+              <TabsContent value="int-bear">
+                <BearTab />
+              </TabsContent>
+              <TabsContent value="int-octarine">
+                <OctarineTab />
+              </TabsContent>
+            </div>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {themePreview &&
+        createPortal(
+          <div className="fixed inset-0 z-[110] flex flex-col pointer-events-none">
+            <div className="flex-1" />
+            <div className="pointer-events-auto w-full bg-card border-t-2 border-primary/30 shadow-[0_-4px_20px_rgba(0,0,0,0.4)] flex flex-col max-h-[35vh] overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Theme Preview
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setThemePreview(false);
+                    setOpen(true);
+                  }}
+                  className="px-3 py-1 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                >
+                  Done
+                </button>
               </div>
-            </TabsContent>
-
-            {/* Plan Review */}
-            <TabsContent value="plan-general">
-              <PlanGeneralTab origin={activeOrigin} />
-            </TabsContent>
-            <TabsContent value="plan-display">
-              <PlanDisplayTab />
-            </TabsContent>
-            <TabsContent value="plan-saving">
-              <SavingTab onNavigateTab={setActiveTab} />
-            </TabsContent>
-            <TabsContent value="plan-labels">
-              <LabelsTab />
-            </TabsContent>
-            <TabsContent value="plan-hooks">
-              <HooksTab fetchFn={daemonFetch} />
-            </TabsContent>
-
-            {/* Code Review */}
-            <TabsContent value="review-git">
-              <GitTab />
-            </TabsContent>
-            <TabsContent value="review-display">
-              <ReviewDisplayTab />
-            </TabsContent>
-            <TabsContent value="review-comments">
-              <CommentsTab />
-            </TabsContent>
-            <TabsContent value="review-ai">
-              <AISettingsTab
-                providers={aiProviders}
-                selectedProviderId={aiProviderId}
-                onProviderChange={handleAiProviderChange}
-              />
-            </TabsContent>
-
-            {/* Integrations */}
-            <TabsContent value="int-files">
-              <FilesTab />
-            </TabsContent>
-            <TabsContent value="int-obsidian">
-              <ObsidianTab fetchFn={daemonFetch} />
-            </TabsContent>
-            <TabsContent value="int-bear">
-              <BearTab />
-            </TabsContent>
-            <TabsContent value="int-octarine">
-              <OctarineTab />
-            </TabsContent>
-          </div>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
-
-    {themePreview && createPortal(
-      <div className="fixed inset-0 z-[110] flex flex-col pointer-events-none">
-        <div className="flex-1" />
-        <div className="pointer-events-auto w-full bg-card border-t-2 border-primary/30 shadow-[0_-4px_20px_rgba(0,0,0,0.4)] flex flex-col max-h-[35vh] overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Theme Preview</span>
-            <button
-              type="button"
-              onClick={() => { setThemePreview(false); setOpen(true); }}
-              className="px-3 py-1 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-            >
-              Done
-            </button>
-          </div>
-          <div className="p-3 overflow-y-auto flex-1 min-h-0">
-            <ThemeTab compact />
-          </div>
-        </div>
-      </div>,
-      document.body,
-    )}
-  </>
+              <div className="p-3 overflow-y-auto flex-1 min-h-0">
+                <ThemeTab compact />
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }

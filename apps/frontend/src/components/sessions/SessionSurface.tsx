@@ -18,7 +18,9 @@ interface SessionSurfaceProps {
   bootstrap: SessionBootstrap;
 }
 
-export const SessionSurface = React.memo(function SessionSurface({ bootstrap }: SessionSurfaceProps) {
+export const SessionSurface = React.memo(function SessionSurface({
+  bootstrap,
+}: SessionSurfaceProps) {
   const { session } = bootstrap;
 
   if (session.mode === "review") {

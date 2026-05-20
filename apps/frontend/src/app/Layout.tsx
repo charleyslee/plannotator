@@ -64,18 +64,23 @@ function LayoutContent() {
           <Outlet />
         </div>
 
-        {Object.values(visitedSessions).map(({ sessionId, bootstrap }) => (
-          <div
-            key={sessionId}
-            className={`absolute inset-0 overflow-hidden ${sidebarOpen ? "rounded-tl-xl border-l border-border/50" : ""}`}
-            style={{
-              visibility: sessionId === activeSessionId && isOnSession ? "visible" : "hidden",
-              zIndex: sessionId === activeSessionId && isOnSession ? 1 : 0,
-            }}
-          >
-            <SessionSurface bootstrap={bootstrap} />
-          </div>
-        ))}
+        {Object.values(visitedSessions).map(({ sessionId, bootstrap }) => {
+          const isActive = sessionId === activeSessionId && isOnSession;
+          return (
+            <div
+              key={sessionId}
+              className={`absolute inset-0 overflow-hidden ${sidebarOpen ? "rounded-tl-xl border-l border-border/50" : ""}`}
+              style={{
+                visibility: isActive ? "visible" : "hidden",
+                contentVisibility: isActive ? "visible" : "hidden",
+                containIntrinsicSize: isActive ? undefined : "auto 100vh",
+                zIndex: isActive ? 1 : 0,
+              }}
+            >
+              <SessionSurface bootstrap={bootstrap} />
+            </div>
+          );
+        })}
       </main>
       <AddProjectDialog open={addProjectOpen} onOpenChange={setAddProjectOpen} />
       <AppSettingsDialog />

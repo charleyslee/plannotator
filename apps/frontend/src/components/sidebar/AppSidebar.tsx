@@ -149,7 +149,10 @@ export function AppSidebar({ onAddProject }: AppSidebarProps) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={() => appStore.getState().setSettingsOpen(true)} tooltip="Settings">
+            <SidebarMenuButton
+              onClick={() => appStore.getState().setSettingsOpen(true)}
+              tooltip="Settings"
+            >
               <Settings />
               <span>Settings</span>
             </SidebarMenuButton>

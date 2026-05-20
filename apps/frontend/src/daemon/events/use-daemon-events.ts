@@ -25,14 +25,18 @@ export function useDaemonEvents(client: DaemonApiClient = daemonApiClient, enabl
       const modeLabel = MODE_LABELS[session.mode] ?? session.mode;
       const cleanLabel = session.label
         .replace(/^plugin-(plan|review|annotate|archive)-/, "")
-        .replace(/^(claude-code|opencode|pi|plannotator-frontend|codex|copilot-cli|gemini-cli)-/, "")
+        .replace(
+          /^(claude-code|opencode|pi|plannotator-frontend|codex|copilot-cli|gemini-cli)-/,
+          "",
+        )
         .replace(/^goal-setup-(interview|facts)-/, "");
       toast(`${modeLabel} — ${session.project}`, {
         description: cleanLabel !== session.project ? cleanLabel : undefined,
         duration: 8000,
         action: {
           label: "Open",
-          onClick: () => router.navigate({ to: "/s/$sessionId", params: { sessionId: session.id } }),
+          onClick: () =>
+            router.navigate({ to: "/s/$sessionId", params: { sessionId: session.id } }),
         },
       });
     },
