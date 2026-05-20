@@ -56,7 +56,7 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
         <div className="h-full overflow-hidden rounded-xl bg-card shadow-[var(--card-shadow)]">
           <main className="flex h-full items-center justify-center overflow-auto">
             <div className="w-full max-w-2xl px-6">
-              <pre className="mb-8 overflow-x-auto text-[5px] leading-[1.2] text-muted-foreground/30 sm:text-[6px] md:text-[7px]" aria-hidden="true">
+              <pre className="mb-8 overflow-x-auto text-[5px] leading-[1.2] text-foreground/70 sm:text-[6px] md:text-[7px]" aria-hidden="true">
                 {ASCII_BANNER}
               </pre>
 
