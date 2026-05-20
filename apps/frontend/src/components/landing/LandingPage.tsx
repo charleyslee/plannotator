@@ -76,7 +76,7 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
                       <button
                         type="button"
                         onClick={onAddProject}
-                        className="mt-2 inline-flex items-center gap-1.5 pl-3 text-[12px] text-muted-foreground hover:text-foreground"
+                        className="mt-2 inline-flex items-center gap-1.5 pl-3 text-[12px] text-foreground/80 hover:text-foreground"
                       >
                         <FolderPlus className="size-3.5" />
                         Add project
@@ -133,7 +133,7 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
                     <button
                       type="button"
                       onClick={onAddProject}
-                      className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+                      className="inline-flex items-center gap-1.5 text-[12px] text-foreground/80 hover:text-foreground"
                     >
                       <FolderPlus className="size-3.5" />
                       Add project to launch sessions
