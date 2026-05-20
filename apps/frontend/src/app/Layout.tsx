@@ -5,7 +5,9 @@ import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "../components/sidebar/AppSidebar";
 import { AddProjectDialog } from "../components/landing/AddProjectDialog";
+import { AppSettingsDialog } from "../components/settings/AppSettingsDialog";
 import { SessionSurface } from "../components/sessions/SessionSurface";
+import { appStore } from "../stores/app-store";
 import { useDaemonEvents } from "../daemon/events/use-daemon-events";
 import { projectStore } from "../stores/project-store";
 import { useAppStore } from "../stores/app-store";
@@ -30,6 +32,17 @@ function LayoutContent() {
     reportActiveSession(isOnSession ? activeSessionId : null);
   }, [reportActiveSession, isOnSession, activeSessionId]);
   const showLanding = !isOnSession;
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+        e.preventDefault();
+        appStore.getState().setSettingsOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   const openAddProject = useCallback(() => setAddProjectOpen(true), [setAddProjectOpen]);
 
@@ -61,6 +74,7 @@ function LayoutContent() {
         ))}
       </main>
       <AddProjectDialog open={addProjectOpen} onOpenChange={setAddProjectOpen} />
+      <AppSettingsDialog />
       <Toaster
         position="bottom-right"
         toastOptions={{

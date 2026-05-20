@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { Link, useMatchRoute } from "@tanstack/react-router";
-import { Check, FolderPlus, Moon, Sun } from "lucide-react";
+import { Check, FolderPlus, Moon, Settings, Sun } from "lucide-react";
+import { appStore } from "../../stores/app-store";
 import { cn } from "@/lib/utils";
 import {
   Sidebar,
@@ -145,6 +146,12 @@ export function AppSidebar({ onAddProject }: AppSidebarProps) {
             <SidebarMenuButton onClick={onAddProject} tooltip="Add project">
               <FolderPlus />
               <span>Add project</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={() => appStore.getState().setSettingsOpen(true)} tooltip="Settings">
+              <Settings />
+              <span>Settings</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

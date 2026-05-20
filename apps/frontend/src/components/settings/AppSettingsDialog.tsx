@@ -1,0 +1,110 @@
+import { Settings } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useAppStore } from "../../stores/app-store";
+import { GitTab, ReviewDisplayTab, CommentsTab } from "@plannotator/ui/components/Settings";
+import { ThemeTab } from "@plannotator/ui/components/ThemeTab";
+import { KeyboardShortcuts } from "@plannotator/ui/components/KeyboardShortcuts";
+import { HooksTab } from "@plannotator/ui/components/settings/HooksTab";
+
+interface TabDef {
+  id: string;
+  label: string;
+}
+
+const GENERAL_TABS: TabDef[] = [
+  { id: "theme", label: "Theme" },
+  { id: "shortcuts", label: "Shortcuts" },
+];
+
+const PLAN_TABS: TabDef[] = [
+  { id: "plan-hooks", label: "Hooks" },
+];
+
+const REVIEW_TABS: TabDef[] = [
+  { id: "review-git", label: "Git" },
+  { id: "review-display", label: "Display" },
+  { id: "review-comments", label: "Comments" },
+];
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-3 pb-1 pt-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
+export function AppSettingsDialog() {
+  const open = useAppStore((s) => s.settingsOpen);
+  const setOpen = useAppStore((s) => s.setSettingsOpen);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="p-0">
+        <DialogTitle className="sr-only">Settings</DialogTitle>
+        <Tabs defaultValue="theme" orientation="vertical" className="flex h-[min(600px,80vh)]">
+          <div className="w-44 shrink-0 border-r border-border overflow-y-auto py-2 px-2">
+            <div className="flex items-center gap-2 px-3 pb-3 pt-1">
+              <Settings className="size-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">Settings</span>
+            </div>
+
+            <TabsList className="flex-col gap-0.5">
+              <SectionLabel>General</SectionLabel>
+              {GENERAL_TABS.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id} className="w-full justify-start h-8">
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+
+              <SectionLabel>Plan Review</SectionLabel>
+              {PLAN_TABS.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id} className="w-full justify-start h-8">
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+
+              <SectionLabel>Code Review</SectionLabel>
+              {REVIEW_TABS.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id} className="w-full justify-start h-8">
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6">
+            <TabsContent value="theme">
+              <ThemeTab />
+            </TabsContent>
+
+            <TabsContent value="shortcuts">
+              <KeyboardShortcuts mode="plan" />
+            </TabsContent>
+
+            <TabsContent value="plan-hooks">
+              <HooksTab />
+            </TabsContent>
+
+            <TabsContent value="review-git">
+              <GitTab />
+            </TabsContent>
+
+            <TabsContent value="review-display">
+              <ReviewDisplayTab />
+            </TabsContent>
+
+            <TabsContent value="review-comments">
+              <CommentsTab />
+            </TabsContent>
+          </div>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}

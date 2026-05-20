@@ -191,7 +191,7 @@ function ToggleSwitch({ checked, onChange, label, description }: {
   );
 }
 
-const GitTab: React.FC = () => {
+export const GitTab: React.FC = () => {
   const defaultDiffType = useConfigValue('defaultDiffType');
   return (
     <div className="space-y-2">
@@ -229,7 +229,7 @@ const GitTab: React.FC = () => {
   );
 };
 
-const ReviewDisplayTab: React.FC = () => {
+export const ReviewDisplayTab: React.FC = () => {
   const diffStyle = useConfigValue('diffStyle');
   const diffOverflow = useConfigValue('diffOverflow');
   const diffIndicators = useConfigValue('diffIndicators');
@@ -434,7 +434,7 @@ function parseCCLabels(json: string | null): CCLabelConfig[] {
   }
 }
 
-const CommentsTab: React.FC = () => {
+export const CommentsTab: React.FC = () => {
   const conventionalComments = useConfigValue('conventionalComments');
   const labelsJson = useConfigValue('conventionalLabels');
   const [labels, setLabels] = useState(() => parseCCLabels(labelsJson));
