@@ -93,7 +93,9 @@ export function AppSettingsDialog() {
 
   useEffect(() => {
     if (!open) return;
-    fetch("/api/ai/capabilities")
+    const apiBase = activeSessionId ? `/s/${activeSessionId}/api` : null;
+    if (!apiBase) return;
+    fetch(`${apiBase}/ai/capabilities`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.providers) setAiProviders(data.providers);
@@ -158,13 +160,23 @@ export function AppSettingsDialog() {
           <div className="flex-1 overflow-y-auto p-6">
             {/* General */}
             <TabsContent value="general">
+              {/* gitUser not available at app level — git name button hidden. Available in per-surface settings. */}
               <GeneralTab />
             </TabsContent>
             <TabsContent value="theme">
               <ThemeTab />
             </TabsContent>
             <TabsContent value="shortcuts">
-              <KeyboardShortcuts mode="plan" />
+              <div className="space-y-6">
+                <div>
+                  <div className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Plan Review</div>
+                  <KeyboardShortcuts mode="plan" />
+                </div>
+                <div className="border-t border-border pt-6">
+                  <div className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Code Review</div>
+                  <KeyboardShortcuts mode="review" />
+                </div>
+              </div>
             </TabsContent>
 
             {/* Plan Review */}
