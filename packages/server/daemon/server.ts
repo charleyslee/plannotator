@@ -394,7 +394,8 @@ export function createDaemonFetchHandler(options: DaemonServerOptions): DaemonFe
         try {
           requestContext?.disableIdleTimeout?.();
           const record = await options.createSession(body, context);
-          const browserAction = options.presentSession
+          const isFrontendInitiated = record.origin === "plannotator-frontend";
+          const browserAction = options.presentSession && !isFrontendInitiated
             ? await options.presentSession(record, eventHub).catch((): SessionBrowserAction => "opened")
             : undefined;
           return json({

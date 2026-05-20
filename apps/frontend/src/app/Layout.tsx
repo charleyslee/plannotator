@@ -68,6 +68,8 @@ function LayoutContent() {
             "--normal-bg": "var(--card)",
             "--normal-border": "var(--border)",
             "--normal-text": "var(--foreground)",
+            "--normal-action-bg": "var(--primary)",
+            "--normal-action-text": "var(--primary-foreground)",
           } as React.CSSProperties,
         }}
       />

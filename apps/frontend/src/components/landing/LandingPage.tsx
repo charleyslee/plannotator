@@ -54,7 +54,7 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
       <div className="flex-1 overflow-hidden p-2 pt-0">
         <div className="h-full overflow-hidden rounded-xl bg-card shadow-[var(--card-shadow)]">
           <main className="flex h-full items-center justify-center overflow-auto">
-            <div className="w-full max-w-xl px-6">
+            <div className="w-full max-w-2xl px-6">
               {projects.length === 0 && sessions.length === 0 ? (
                 <EmptyState onAddProject={onAddProject} />
               ) : (
@@ -287,7 +287,7 @@ function ProjectNode({
                     : "text-muted-foreground hover:bg-surface-1/50 hover:text-foreground",
                 )}
               >
-                <GitBranch className="size-3.5 shrink-0 opacity-50" />
+                <GitBranch className="size-3.5 shrink-0" />
                 <span className="font-medium">{wt.branch ?? "detached"}</span>
                 <span className="ml-auto truncate text-[11px] opacity-60">{wt.path}</span>
               </button>
