@@ -184,10 +184,11 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; onOpen
   const goalSetupMode = goalSetupBundle !== null;
 
   useEffect(() => {
+    if (!isVisible()) return;
     const prev = document.title;
     document.title = repoInfo ? `${repoInfo.display} · Plannotator` : "Plannotator";
     return () => { document.title = prev; };
-  }, [repoInfo]);
+  }, [repoInfo, isVisible]);
 
   const [initialExportTab, setInitialExportTab] = useState<'share' | 'annotations' | 'notes'>();
   const [isPlanDiffActive, setIsPlanDiffActive] = useState(false);
@@ -1892,6 +1893,7 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; onOpen
                   archiveInfo={archive.currentInfo}
                   maxWidth={annotateReaderMaxWidth}
                   remountToken={linkedDocHook.isActive ? `doc:${linkedDocHook.filepath}` : 'plan'}
+                  containerRef={rootRef}
                 />
               )}
 

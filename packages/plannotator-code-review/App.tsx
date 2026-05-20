@@ -166,24 +166,27 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
   const diffFontSize = useConfigValue('diffFontSize');
   const diffTabSize = useConfigValue('diffTabSize');
 
-  // Load custom diff font and override --font-mono for surrounding review elements
+  // Load custom diff font and set CSS vars on the session container (not document root)
+  // so multiple sessions don't stomp each other's font overrides.
   useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
     if (diffFontFamily) {
       loadDiffFont(diffFontFamily);
-      document.documentElement.style.setProperty('--diff-font-override', `'${diffFontFamily}', monospace`);
+      el.style.setProperty('--diff-font-override', `'${diffFontFamily}', monospace`);
     } else {
-      document.documentElement.style.removeProperty('--diff-font-override');
+      el.style.removeProperty('--diff-font-override');
     }
     if (diffFontSize) {
-      document.documentElement.style.setProperty('--diff-font-size-override', diffFontSize);
+      el.style.setProperty('--diff-font-size-override', diffFontSize);
     } else {
-      document.documentElement.style.removeProperty('--diff-font-size-override');
+      el.style.removeProperty('--diff-font-size-override');
     }
-    document.documentElement.style.setProperty('--diffs-tab-size', String(diffTabSize));
+    el.style.setProperty('--diffs-tab-size', String(diffTabSize));
     return () => {
-      document.documentElement.style.removeProperty('--diff-font-override');
-      document.documentElement.style.removeProperty('--diff-font-size-override');
-      document.documentElement.style.removeProperty('--diffs-tab-size');
+      el.style.removeProperty('--diff-font-override');
+      el.style.removeProperty('--diff-font-size-override');
+      el.style.removeProperty('--diffs-tab-size');
     };
   }, [diffFontFamily, diffFontSize, diffTabSize]);
 
@@ -223,10 +226,11 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
   const [repoInfo, setRepoInfo] = useState<{ display: string; branch?: string } | null>(null);
 
   useEffect(() => {
+    if (!isVisible()) return;
     const prev = document.title;
     document.title = repoInfo ? `${repoInfo.display} · Code Review` : "Code Review";
     return () => { document.title = prev; };
-  }, [repoInfo]);
+  }, [repoInfo, isVisible]);
 
   const { prMetadata, prStackInfo, prStackTree, prDiffScope, prDiffScopeOptions, updatePRSession } = usePRSession();
   const { withPRContext } = useAnnotationFactory(prMetadata, prStackInfo ? prDiffScope : undefined);

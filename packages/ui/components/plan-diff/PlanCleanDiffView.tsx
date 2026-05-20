@@ -37,6 +37,7 @@ interface PlanCleanDiffViewProps {
    * "Classic" diff view exposed in the mode switcher.
    */
   wordLevel?: boolean;
+  containerRef?: React.RefObject<HTMLElement | null>;
 }
 
 export const PlanCleanDiffView: React.FC<PlanCleanDiffViewProps> = ({
@@ -47,6 +48,7 @@ export const PlanCleanDiffView: React.FC<PlanCleanDiffViewProps> = ({
   selectedAnnotationId = null,
   mode = "selection",
   wordLevel = true,
+  containerRef,
 }) => {
   const modeRef = useRef<EditorMode>(mode);
   const onAddAnnotationRef = useRef(onAddAnnotation);
@@ -100,7 +102,8 @@ export const PlanCleanDiffView: React.FC<PlanCleanDiffViewProps> = ({
     if (!ann?.blockId?.startsWith('diff-block-')) return;
 
     const idx = ann.blockId.replace('diff-block-', '');
-    const el = document.querySelector(`[data-diff-block-index="${idx}"]`);
+    const root = containerRef?.current ?? document;
+    const el = root.querySelector(`[data-diff-block-index="${idx}"]`);
     if (!el) return;
 
     el.classList.add('annotation-highlight', 'focused');

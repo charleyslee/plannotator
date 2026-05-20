@@ -1,3 +1,4 @@
+import React from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SessionProvider } from "@plannotator/ui/hooks/useSessionFetch";
 import { ReviewAppEmbedded } from "@plannotator/code-review";
@@ -17,7 +18,7 @@ interface SessionSurfaceProps {
   bootstrap: SessionBootstrap;
 }
 
-export function SessionSurface({ bootstrap }: SessionSurfaceProps) {
+export const SessionSurface = React.memo(function SessionSurface({ bootstrap }: SessionSurfaceProps) {
   const { session } = bootstrap;
 
   if (session.mode === "review") {
@@ -33,4 +34,4 @@ export function SessionSurface({ bootstrap }: SessionSurfaceProps) {
       <PlanAppEmbedded headerLeft={sidebarTrigger} onOpenSettings={openSettings} />
     </SessionProvider>
   );
-}
+});
