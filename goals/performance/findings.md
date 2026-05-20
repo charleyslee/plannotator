@@ -125,6 +125,28 @@ Every one of these state changes cascades to the unmemoized `ReviewSidebar` and 
 
 Only fires on theme change. Per session: `usePierreTheme`, `DiffHunkPreview`, `ReviewHeaderMenu` — 3 components × N sessions.
 
+## Tier 5 — Memory leaks and unbounded growth
+
+### 26. Module-level draft Maps never purged
+
+`packages/plannotator-code-review/hooks/useAnnotationToolbar.ts` lines 47-48 — `draftStore` and `restoreDraftKeyByFilePath` are module-level `Map` singletons. Keyed by `"filePath:side:start-end"`. Entries are only removed on explicit submit/cancel — never on file abandon or session hide. With large PRs and repeated sessions, both Maps grow without bound across the page lifetime.
+
+### 27. usePierreTheme fires uncancelled requestAnimationFrame
+
+`packages/plannotator-code-review/hooks/usePierreTheme.ts` lines 177-283 — `useEffect` schedules `requestAnimationFrame` with no cleanup return. The rAF ID is not stored, so it cannot be cancelled on unmount or dep change. Each dep change (theme toggle, font change) fires a new rAF without cancelling the previous. With N sessions, N rAF callbacks are in-flight simultaneously on every theme change.
+
+### 28. WebSocket subscriptions and pollers accumulate per hidden session
+
+`packages/ui/hooks/useExternalAnnotations.ts` and `packages/ui/hooks/useAgentJobs.ts` — each delegates to `useDaemonSessionTransport`, which subscribes to the WebSocket hub and starts a 2-second polling fallback when disconnected. Cleanup only fires on unmount. Since hidden sessions never unmount, N sessions = N active subscriptions + up to N concurrent `setInterval` timers if WebSocket drops.
+
+### 29. useEditorAnnotations 500ms poller per hidden session (VS Code only)
+
+`packages/ui/hooks/useEditorAnnotations.ts` line 45 — when `IS_VSCODE` is true, every mounted session starts a `setInterval(..., 500)` fetching `/api/editor-annotations`. Hidden sessions keep polling. N sessions = N separate 500ms pollers.
+
+### 30. configStore.listeners grows with hidden sessions
+
+`packages/ui/config/configStore.ts` — `useSyncExternalStore` subscribers are only removed on unmount. Hidden sessions never unmount. With ~15 `useConfigValue` calls per session × N sessions, the listener Set grows to O(15N) and never shrinks during the page lifetime.
+
 ## What's NOT Causing It
 
 - **Polling/transport hooks** — WebSocket is connected, no timers running when idle
