@@ -11,6 +11,11 @@ import { GeneralTab } from "@plannotator/ui/components/settings/GeneralTab";
 import { PlanGeneralTab } from "@plannotator/ui/components/settings/PlanGeneralTab";
 import { PlanDisplayTab } from "@plannotator/ui/components/settings/PlanDisplayTab";
 import { SavingTab } from "@plannotator/ui/components/settings/SavingTab";
+import { LabelsTab } from "@plannotator/ui/components/settings/LabelsTab";
+import { FilesTab } from "@plannotator/ui/components/settings/FilesTab";
+import { ObsidianTab } from "@plannotator/ui/components/settings/ObsidianTab";
+import { BearTab } from "@plannotator/ui/components/settings/BearTab";
+import { OctarineTab } from "@plannotator/ui/components/settings/OctarineTab";
 import { GitTab, ReviewDisplayTab, CommentsTab } from "@plannotator/ui/components/Settings";
 import { ThemeTab } from "@plannotator/ui/components/ThemeTab";
 import { KeyboardShortcuts } from "@plannotator/ui/components/KeyboardShortcuts";
@@ -54,14 +59,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-3 pb-1 pt-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
       {children}
-    </div>
-  );
-}
-
-function PlaceholderTab({ label }: { label: string }) {
-  return (
-    <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-      {label} settings — extraction in progress.
     </div>
   );
 }
@@ -141,7 +138,7 @@ export function AppSettingsDialog() {
               <SavingTab onNavigateTab={setActiveTab} />
             </TabsContent>
             <TabsContent value="plan-labels">
-              <PlaceholderTab label="Quick annotation labels" />
+              <LabelsTab />
             </TabsContent>
             <TabsContent value="plan-hooks">
               <HooksTab />
@@ -163,16 +160,16 @@ export function AppSettingsDialog() {
 
             {/* Integrations */}
             <TabsContent value="int-files">
-              <PlaceholderTab label="File browser directories" />
+              <FilesTab />
             </TabsContent>
             <TabsContent value="int-obsidian">
-              <PlaceholderTab label="Obsidian vault sync" />
+              <ObsidianTab />
             </TabsContent>
             <TabsContent value="int-bear">
-              <PlaceholderTab label="Bear Notes" />
+              <BearTab />
             </TabsContent>
             <TabsContent value="int-octarine">
-              <PlaceholderTab label="Octarine workspace" />
+              <OctarineTab />
             </TabsContent>
           </div>
         </Tabs>
