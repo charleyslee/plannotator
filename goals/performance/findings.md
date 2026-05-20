@@ -147,6 +147,44 @@ Only fires on theme change. Per session: `usePierreTheme`, `DiffHunkPreview`, `R
 
 `packages/ui/config/configStore.ts` — `useSyncExternalStore` subscribers are only removed on unmount. Hidden sessions never unmount. With ~15 `useConfigValue` calls per session × N sessions, the listener Set grows to O(15N) and never shrinks during the page lifetime.
 
+## Tier 6 — Build and architecture (affects every user, every load)
+
+### 31. Zero code splitting — 18.4MB single-file bundle
+
+`apps/frontend/vite.config.ts` — `vite-plugin-singlefile` + `inlineDynamicImports: true` forces the entire app into one file. Both full App components (~4800 lines combined), `@pierre/diffs`, `highlight.js`, `motion`, `dockview-react`, mermaid, viz.js, all Radix primitives, all CSS — everything loads on first page load. No lazy loading of any kind. The browser parses and JIT-compiles the entire bundle before anything renders.
+
+### 32. Mermaid and viz.js statically imported at module level
+
+`packages/ui/components/MermaidBlock.tsx` line 6 — `mermaid.initialize({...})` runs at module import time. `packages/ui/components/GraphvizBlock.tsx` line 3 — `@viz-js/viz` (1.4MB, contains WASM Graphviz) is statically imported. Both load for every user even if they never see a diagram. These could be `React.lazy()` + dynamic `import()`.
+
+### 33. 361KB of base64-inlined fonts (all unicode ranges)
+
+`apps/frontend/src/styles.css` — `@fontsource-variable/inter` loads 7 unicode-range `@font-face` rules (Cyrillic, Greek, Vietnamese, Latin-ext, Latin, etc.). With `viteSingleFile`, all 10 woff2 files are base64-inlined. 361KB of font data that the browser can't skip. Using Latin-only would eliminate ~300KB.
+
+### 34. 198KB of theme CSS loaded for all 50+ themes
+
+All theme definitions load at startup even though only one is active. No per-theme splitting.
+
+### 35. Persistent backdrop-blur on always-visible panels
+
+`AnnotationPanel`, `AnnotationSidebar`, `TableOfContents`, `StickyHeaderLane` all have `backdrop-blur-sm`. This triggers GPU compositing on the blur filter, which is expensive whenever anything behind those panels changes (scrolling, animations). These are not overlays — they're permanent UI panels.
+
+### 36. Two separate WebSocket connections to /daemon/ws
+
+`UiDaemonHubClient` (packages/ui/utils/daemonHub.ts) and `DaemonHubClient` (apps/frontend/src/daemon/events/hub-client.ts) are completely independent clients connecting to the same endpoint. Two TCP connections with separate reconnect timers. Could be one multiplexed connection.
+
+### 37. 29+ OverlayScrollbars instances with ResizeObserver each
+
+Used in FileTree, DiffViewer, ReviewSidebar, AITab, PRCommentsTab, LiveLogViewer, TourDialog, Settings, AnnotationPanel, Viewer, TableOfContents, and more. Each instance has its own ResizeObserver. With keep-alive sessions, all instances across all sessions stay alive.
+
+### 38. getComputedStyle in useState initializer blocks first render
+
+`packages/plannotator-code-review/hooks/usePierreTheme.ts` line 160 — `getComputedStyle(document.documentElement)` in a `useState` lazy initializer forces synchronous style recalculation during the first render of every code review session mount.
+
+### 39. Monolithic App components (~2500 lines) with no memo boundaries
+
+Both `plannotator-code-review/App.tsx` and `plannotator-plan-review/App.tsx` are single giant components. All state, hooks, and render logic in one function. Any state update — even minor ones like `setCopyFeedback` — triggers reconciliation over the entire tree. No `React.memo` boundaries to stop propagation. Dockview, file tree, diff viewer, sidebar, AI chat all re-check props on every update.
+
 ## What's NOT Causing It
 
 - **Polling/transport hooks** — WebSocket is connected, no timers running when idle
