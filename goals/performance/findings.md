@@ -95,21 +95,33 @@ Every one of these state changes cascades to the unmemoized `ReviewSidebar` and 
 
 `packages/plannotator-code-review/components/DiffViewer.tsx` — `setSplitRatio` fires on every `pointermove` while dragging the split handle. DiffViewer is not wrapped in `React.memo`.
 
-### 19. useActiveSection quad-threshold IntersectionObserver
+### 19. AllFilesDiffView: getBoundingClientRect loop on every scroll tick
+
+`packages/plannotator-code-review/components/AllFilesDiffView.tsx` lines 203-226 — the scroll handler loops through ALL expanded files calling `header.getBoundingClientRect()` on each one, synchronously, on every scroll event. With 50 files expanded, that's 50 forced layout reads per scroll tick. Each `getBoundingClientRect()` forces the browser to flush pending layout. This is layout thrashing — reading layout, potentially writing, reading again — at 60fps scroll rate.
+
+### 20. reviewStateValue context invalidates on every line click
+
+`packages/plannotator-code-review/App.tsx` line 1371 — `pendingSelection` is in the `reviewStateValue` useMemo dependency array. `pendingSelection` changes on every diff line click. Since `reviewStateValue` is the `ReviewStateContext.Provider` value, every line click invalidates the context and re-renders ALL dock panels (all-files, code-nav, PR comments, agents) — even panels that don't use `pendingSelection`.
+
+### 21. getComputedStyle called 4-5 times per keypress across sessions
+
+`packages/plannotator-code-review/App.tsx` lines 645, 712, 1085, 1688, 1721 — `isVisible()` calls `getComputedStyle(rootRef.current).visibility` as a guard. Each `getComputedStyle()` forces synchronous style recalculation. With 3 sessions × 4 handlers = 12 forced style recalcs per keystroke. Especially bad when typing in annotation inputs.
+
+### 22. useActiveSection quad-threshold IntersectionObserver
 
 `packages/ui/hooks/useActiveSection.ts` — configured with `threshold: [0, 0.1, 0.5, 1.0]`. Each heading fires up to 4 callbacks per scroll crossing, each calling `setActiveId` with no equality guard.
 
-### 20. ToolbarHost global mousemove
+### 23. ToolbarHost global mousemove
 
 `packages/plannotator-code-review/components/ToolbarHost.tsx` line 92 — `window.addEventListener('mousemove', handleMouseMove)` with no visibility guard. Every mouse movement fires a callback in every mounted session. Handler only writes to a ref (no re-render), but N function calls per mouse move.
 
 ## Tier 4 — Fires intermittently (settings/theme changes only)
 
-### 21. configStore broadcasts to all subscribers
+### 24. configStore broadcasts to all subscribers
 
 `packages/ui/config/configStore.ts` — `notify()` calls every listener on ANY setting change. 14 `useConfigValue` calls per session × N sessions. Only fires when user changes a setting — not during normal use.
 
-### 22. ThemeProvider context re-renders all useTheme consumers
+### 25. ThemeProvider context re-renders all useTheme consumers
 
 Only fires on theme change. Per session: `usePierreTheme`, `DiffHunkPreview`, `ReviewHeaderMenu` — 3 components × N sessions.
 
