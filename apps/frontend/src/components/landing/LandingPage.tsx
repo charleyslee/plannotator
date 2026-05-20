@@ -55,7 +55,7 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
         <div className="h-full overflow-hidden rounded-xl bg-card shadow-[var(--card-shadow)]">
           <main className="flex h-full items-center justify-center overflow-auto">
             <div className="w-full max-w-2xl px-6">
-              <pre className="mb-8 overflow-x-auto text-[5px] leading-[1.2] text-foreground/70 sm:text-[6px] md:text-[7px]" aria-hidden="true">
+              <pre className="mb-8 select-none overflow-x-auto text-[5px] leading-[1.2] text-foreground/70 sm:text-[6px] md:text-[7px]" aria-hidden="true">
                 {ASCII_BANNER}
               </pre>
 
@@ -92,28 +92,26 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
                             disabled={!selected || loading === "review"}
                             onClick={() => handleAction("review")}
                             className={cn(
-                              "relative inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background px-3 py-1.5 text-[12px] font-medium transition-colors",
+                              "inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] font-medium",
                               "hover:bg-surface-1 active:scale-[0.97]",
                               "disabled:pointer-events-none disabled:opacity-40",
-                              "before:absolute before:-inset-1 before:content-['']",
                             )}
                           >
                             <Code2 className="size-3.5" />
-                            {loading === "review" ? "Starting..." : "Code Review"}
+                            {loading === "review" ? "Starting…" : "Code Review"}
                           </button>
                           <button
                             type="button"
                             disabled={!selected || loading === "archive"}
                             onClick={() => handleAction("archive")}
                             className={cn(
-                              "relative inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background px-3 py-1.5 text-[12px] font-medium transition-colors",
+                              "inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] font-medium",
                               "hover:bg-surface-1 active:scale-[0.97]",
                               "disabled:pointer-events-none disabled:opacity-40",
-                              "before:absolute before:-inset-1 before:content-['']",
                             )}
                           >
                             <Archive className="size-3.5" />
-                            {loading === "archive" ? "Opening..." : "Browse Archive"}
+                            {loading === "archive" ? "Opening…" : "Browse Archive"}
                           </button>
                         </div>
                       </div>
@@ -163,7 +161,7 @@ function ProjectTable({
     projects.filter((p) => p.parentCwd === parentCwd);
 
   return (
-    <div className="max-h-64 overflow-y-auto rounded-lg border border-border/60">
+    <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
       {topLevel.map((project, i) => {
         const children = worktreeChildren(project.cwd);
         return (
@@ -210,7 +208,6 @@ function ProjectNode({
   }, [project.cwd, worktreesFetched]);
 
   const hasWorktrees = hasChildren || worktrees.length > 0;
-
   const isSelected = selectedCwd === project.cwd;
 
   return (
@@ -219,37 +216,38 @@ function ProjectNode({
         type="button"
         onClick={() => onSelect({ cwd: project.cwd, label: project.name })}
         className={cn(
-          "flex w-full items-center gap-3 px-3 py-2 text-left text-[13px] transition-colors",
-          !isFirst && "border-t border-border/40",
+          "flex w-full items-center gap-3 px-3 py-2 text-left text-[13px]",
+          !isFirst && "border-t border-border",
           isSelected
-            ? "bg-primary/8 text-foreground"
-            : "text-muted-foreground hover:bg-surface-1/50 hover:text-foreground",
+            ? "bg-primary/10 text-foreground"
+            : "text-foreground hover:bg-surface-1",
         )}
       >
         <Folder className="size-3.5 shrink-0" />
         <span className="font-medium">{project.name}</span>
         {project.branch && (
-          <span className="text-[11px] opacity-60">{project.branch}</span>
+          <span className="text-[11px] text-muted-foreground">{project.branch}</span>
         )}
-        <span className="ml-auto truncate text-[11px] opacity-60">{project.cwd}</span>
+        <span className="ml-auto truncate text-[11px] text-muted-foreground">{project.cwd}</span>
         {hasWorktrees && (
-          <span
-            role="button"
+          <button
+            type="button"
+            aria-label={expanded ? "Collapse worktrees" : "Expand worktrees"}
             onClick={(e) => {
               e.stopPropagation();
               setExpanded((prev) => !prev);
             }}
-            className="shrink-0 rounded p-0.5 text-muted-foreground/50 hover:bg-surface-1 hover:text-foreground"
+            className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-          </span>
+          </button>
         )}
       </button>
 
       {expanded && (
         <>
-          <div className="border-t border-border/40 py-1.5 pl-9 pr-3">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">Worktrees</span>
+          <div className="border-t border-border py-1.5 pl-9 pr-3">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Worktrees</span>
           </div>
           {children.map((child) => (
             <button
@@ -257,14 +255,14 @@ function ProjectNode({
               type="button"
               onClick={() => onSelect({ cwd: child.cwd, label: `${project.name} / ${child.branch ?? child.name}` })}
               className={cn(
-                "flex w-full items-center gap-2 border-t border-border/40 py-2 pl-9 pr-3 text-left text-[13px] transition-colors",
+                "flex w-full items-center gap-2 border-t border-border py-2 pl-9 pr-3 text-left text-[13px]",
                 selectedCwd === child.cwd
-                  ? "bg-primary/8 text-foreground"
-                  : "text-muted-foreground hover:bg-surface-1/50 hover:text-foreground",
+                  ? "bg-primary/10 text-foreground"
+                  : "text-foreground hover:bg-surface-1",
               )}
             >
               <span className="font-medium">{child.branch ?? child.name}</span>
-              <span className="ml-auto truncate text-[11px] opacity-60">{child.cwd}</span>
+              <span className="ml-auto truncate text-[11px] text-muted-foreground">{child.cwd}</span>
             </button>
           ))}
           {worktrees.map((wt) => {
@@ -275,14 +273,14 @@ function ProjectNode({
                 type="button"
                 onClick={() => onSelect({ cwd: wt.path, label: `${project.name} / ${wt.branch ?? "detached"}` })}
                 className={cn(
-                  "flex w-full items-center gap-2 border-t border-border/40 py-2 pl-9 pr-3 text-left text-[13px] transition-colors",
+                  "flex w-full items-center gap-2 border-t border-border py-2 pl-9 pr-3 text-left text-[13px]",
                   selectedCwd === wt.path
-                    ? "bg-primary/8 text-foreground"
-                    : "text-muted-foreground hover:bg-surface-1/50 hover:text-foreground",
+                    ? "bg-primary/10 text-foreground"
+                    : "text-foreground hover:bg-surface-1",
                 )}
               >
                 <span className="font-medium">{wt.branch ?? "detached"}</span>
-                <span className="ml-auto truncate text-[11px] opacity-60">{wt.path}</span>
+                <span className="ml-auto truncate text-[11px] text-muted-foreground">{wt.path}</span>
               </button>
             );
           })}
@@ -294,7 +292,7 @@ function ProjectNode({
 
 function SessionList({ sessions }: { sessions: SessionSummary[] }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border/60">
+    <div className="overflow-hidden rounded-lg border border-border">
       {sessions.map((session, i) => {
         const meta = getSessionModeMeta(session.mode);
         const Icon = meta.icon;
@@ -304,14 +302,14 @@ function SessionList({ sessions }: { sessions: SessionSummary[] }) {
             to="/s/$sessionId"
             params={{ sessionId: session.id }}
             className={cn(
-              "flex w-full items-center gap-3 px-3 py-2 text-left text-[13px] transition-colors",
-              i > 0 && "border-t border-border/40",
-              "text-muted-foreground hover:bg-surface-1/50 hover:text-foreground",
+              "flex w-full items-center gap-3 px-3 py-2 text-left text-[13px]",
+              i > 0 && "border-t border-border",
+              "text-foreground hover:bg-surface-1",
             )}
           >
             <Icon className="size-3.5 shrink-0 text-primary" />
             <span className="font-medium">{session.label}</span>
-            <span className="ml-auto text-[11px] opacity-60">{meta.label}</span>
+            <span className="ml-auto text-[11px] text-muted-foreground">{meta.label}</span>
           </Link>
         );
       })}
