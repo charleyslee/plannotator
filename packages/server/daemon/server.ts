@@ -471,6 +471,28 @@ export function createDaemonFetchHandler(options: DaemonServerOptions): DaemonFe
         return json({ ok: true, shuttingDown: true });
       }
 
+      if (url.pathname === "/daemon/fs/list" && req.method === "GET") {
+        const rawPath = url.searchParams.get("path") ?? "~";
+        try {
+          const { readdirSync, statSync } = await import("fs");
+          const { homedir } = await import("os");
+          const { join, resolve: resolvePath } = await import("path");
+          const resolved = rawPath === "~" || rawPath === "~/"
+            ? homedir()
+            : rawPath.startsWith("~/")
+              ? join(homedir(), rawPath.slice(2))
+              : resolvePath(rawPath);
+          const entries = readdirSync(resolved, { withFileTypes: true });
+          const dirs = entries
+            .filter((e) => e.isDirectory() && !e.name.startsWith("."))
+            .map((e) => ({ name: e.name, path: join(resolved, e.name) }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          return json({ ok: true, path: resolved, dirs });
+        } catch {
+          return json({ ok: true, path: rawPath, dirs: [] });
+        }
+      }
+
       if (url.pathname === "/daemon/projects" && req.method === "GET") {
         return json({ ok: true, projects: listProjects() });
       }

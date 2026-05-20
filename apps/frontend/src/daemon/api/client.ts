@@ -12,6 +12,7 @@ import type {
   SessionResponse,
   SessionSummary,
   WorktreeListResponse,
+  DirectoryListResponse,
 } from "../contracts";
 import {
   DaemonHubActionError,
@@ -67,6 +68,7 @@ export interface DaemonApiClient {
   ): Promise<DaemonApiResult<{ ok: true; project: ProjectEntry }>>;
   removeProject(name: string): Promise<DaemonApiResult<{ ok: true }>>;
   listWorktrees(cwd: string): Promise<DaemonApiResult<WorktreeListResponse>>;
+  listDirectories(path?: string): Promise<DaemonApiResult<DirectoryListResponse>>;
   createReviewSession(cwd: string): Promise<DaemonApiResult<SessionResponse>>;
   createArchiveSession(cwd: string): Promise<DaemonApiResult<SessionResponse>>;
 }
@@ -182,6 +184,10 @@ function isProjectResponse(value: unknown): value is { ok: true; project: Projec
 
 function isWorktreeList(value: unknown): value is WorktreeListResponse {
   return hasOkTrue(value) && Array.isArray((value as { worktrees?: unknown }).worktrees);
+}
+
+function isDirectoryList(value: unknown): value is DirectoryListResponse {
+  return hasOkTrue(value) && Array.isArray((value as { dirs?: unknown }).dirs);
 }
 
 function isSessionBootstrap(value: unknown): value is SessionBootstrap {
@@ -454,6 +460,14 @@ export function createDaemonApiClient(options: DaemonApiClientOptions = {}): Dae
         joinUrl(options.baseUrl, `/daemon/projects/${encodeURIComponent(name)}`),
         isDeleteSessionResponse,
         { method: "DELETE" },
+      );
+    },
+
+    listDirectories(path = "~") {
+      return requestJson(
+        fetchImpl,
+        joinUrl(options.baseUrl, `/daemon/fs/list?path=${encodeURIComponent(path)}`),
+        isDirectoryList,
       );
     },
 

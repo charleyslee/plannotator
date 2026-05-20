@@ -58,6 +58,17 @@ export interface WorktreeListResponse {
   worktrees: WorktreeEntry[];
 }
 
+export interface DirectoryEntry {
+  name: string;
+  path: string;
+}
+
+export interface DirectoryListResponse {
+  ok: true;
+  path: string;
+  dirs: DirectoryEntry[];
+}
+
 export type SessionLifecycleStatus = DaemonSessionStatus;
 export type DaemonServerMessage = DaemonWebSocketServerMessage;
 
