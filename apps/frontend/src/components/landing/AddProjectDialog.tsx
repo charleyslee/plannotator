@@ -69,12 +69,10 @@ export function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) 
 
   const handleNavigate = useCallback(
     (path: string) => {
-      const display = path.replace(resolvedPath === "/" ? "" : resolvedPath, resolvedPath === "/" ? "/" : "");
-      setQuery(resolvedPath === "/" ? path : path.replace(/.*\//, resolvedPath + "/"));
       setQuery(path);
       fetchDirs(path);
     },
-    [resolvedPath, fetchDirs],
+    [fetchDirs],
   );
 
   const handleKeyDown = useCallback(
@@ -120,21 +118,16 @@ export function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) 
 
   if (!open) return null;
 
-  const shortenPath = (p: string) =>
-    resolvedPath && p.startsWith(resolvedPath)
-      ? p.slice(resolvedPath.length + 1) || p
-      : p;
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/55 pt-[15vh] backdrop-blur-[2px]"
       onClick={() => onOpenChange(false)}
     >
       <div
-        className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border/70 bg-popover text-popover-foreground shadow-[0_24px_80px_-36px_rgba(15,23,42,0.5)]"
+        className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-[0_24px_80px_-36px_rgba(15,23,42,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 border-b border-border/50 px-4 py-3">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <Folder className="size-4 shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}
@@ -142,16 +135,17 @@ export function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) 
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="~/work/project or search..."
+            placeholder="~/work/project or search…"
             autoComplete="off"
             spellCheck={false}
-            className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/50"
+            className="flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground sm:text-[13px]"
           />
-          {adding && <span className="text-[11px] text-muted-foreground">Adding...</span>}
+          {adding && <span className="text-[11px] text-muted-foreground">Adding…</span>}
           <button
             type="button"
+            aria-label="Close"
             onClick={() => onOpenChange(false)}
-            className="rounded-md p-1 text-muted-foreground/60 hover:text-foreground"
+            className="rounded-md p-1 text-muted-foreground hover:text-foreground"
           >
             <X className="size-3.5" />
           </button>
@@ -160,7 +154,7 @@ export function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) 
         <div ref={listRef} className="max-h-72 overflow-y-auto">
           {recentProjects.length > 0 && (
             <div className="px-2 pt-2">
-              <span className="px-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+              <span className="px-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Recent
               </span>
               {recentProjects.map((project, i) => (
@@ -178,7 +172,7 @@ export function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) 
 
           <div className="px-2 pb-2 pt-1">
             {recentProjects.length > 0 && dirs.length > 0 && (
-              <span className="px-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+              <span className="px-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Directories
               </span>
             )}
@@ -188,7 +182,6 @@ export function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) 
                 <DirectoryRow
                   key={dir.path}
                   dir={dir}
-                  displayName={shortenPath(dir.path)}
                   active={activeIndex === idx}
                   index={idx}
                   onSelect={() => handleSelect(dir.path)}
@@ -198,22 +191,22 @@ export function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) 
               );
             })}
             {!loading && dirs.length === 0 && recentProjects.length === 0 && (
-              <div className="px-2 py-4 text-center text-[12px] text-muted-foreground/60">
+              <div className="px-2 py-4 text-center text-[12px] text-muted-foreground">
                 No directories found
               </div>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3 border-t border-border/50 px-4 py-2 text-[11px] text-muted-foreground/50">
+        <div className="flex items-center gap-3 border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1">
             <CornerDownLeft className="size-3" /> select
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="rounded border border-border/50 px-1 text-[10px]">Tab</kbd> navigate into
+            <kbd className="rounded border border-border px-1 text-[10px]">Tab</kbd> navigate into
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="rounded border border-border/50 px-1 text-[10px]">Esc</kbd> close
+            <kbd className="rounded border border-border px-1 text-[10px]">Esc</kbd> close
           </span>
         </div>
       </div>
@@ -241,20 +234,19 @@ function ProjectRow({
       onClick={onSelect}
       onMouseEnter={onHover}
       className={cn(
-        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors",
-        active ? "bg-primary/10 text-foreground" : "text-muted-foreground hover:text-foreground",
+        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px]",
+        active ? "bg-primary/10 text-foreground" : "text-foreground hover:bg-surface-1",
       )}
     >
       <Folder className="size-3.5 shrink-0" />
       <span className="font-medium">{project.name}</span>
-      <span className="ml-auto truncate text-[11px] opacity-50">{project.cwd.replace(/^\/Users\/[^/]+/, "~")}</span>
+      <span className="ml-auto truncate text-[11px] text-muted-foreground">{project.cwd.replace(/^\/Users\/[^/]+/, "~")}</span>
     </button>
   );
 }
 
 function DirectoryRow({
   dir,
-  displayName,
   active,
   index,
   onSelect,
@@ -262,7 +254,6 @@ function DirectoryRow({
   onHover,
 }: {
   dir: DirectoryEntry;
-  displayName: string;
   active: boolean;
   index: number;
   onSelect: () => void;
@@ -270,30 +261,30 @@ function DirectoryRow({
   onHover: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <div
       data-index={index}
-      onClick={onSelect}
-      onDoubleClick={onNavigate}
       onMouseEnter={onHover}
       className={cn(
-        "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors",
-        active ? "bg-primary/10 text-foreground" : "text-muted-foreground hover:text-foreground",
+        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px]",
+        active ? "bg-primary/10 text-foreground" : "text-foreground hover:bg-surface-1",
       )}
     >
-      <Folder className="size-3.5 shrink-0" />
-      <span className="font-medium">{dir.name}</span>
       <button
         type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onNavigate();
-        }}
-        className="ml-auto rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-surface-1"
-        title="Navigate into"
+        onClick={onSelect}
+        className="flex flex-1 items-center gap-2 text-left"
+      >
+        <Folder className="size-3.5 shrink-0" />
+        <span className="font-medium">{dir.name}</span>
+      </button>
+      <button
+        type="button"
+        aria-label={`Navigate into ${dir.name}`}
+        onClick={onNavigate}
+        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
       >
         <ChevronRight className="size-3" />
       </button>
-    </button>
+    </div>
   );
 }
