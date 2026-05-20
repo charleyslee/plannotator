@@ -50,6 +50,7 @@ export interface WorktreeEntry {
   path: string;
   branch: string | null;
   head: string;
+  lastActive: number;
 }
 
 export interface WorktreeListResponse {

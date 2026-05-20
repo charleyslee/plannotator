@@ -533,9 +533,36 @@ export function createDaemonFetchHandler(options: DaemonServerOptions): DaemonFe
           }
           if (current.path) worktrees.push({ path: current.path, branch: current.branch ?? null, head: current.head ?? "" });
           const { tmpdir } = await import("os");
+          const { statSync, existsSync } = await import("fs");
+          const { join, resolve: resolvePath } = await import("path");
           const tmp = tmpdir();
           const filtered = worktrees.filter((wt) => !wt.path.startsWith(tmp) && !wt.path.startsWith("/private" + tmp));
-          return json({ ok: true, worktrees: filtered });
+
+          const withActivity = filtered.map((wt) => {
+            let lastActive = 0;
+            try {
+              const gitDir = execSync("git rev-parse --git-dir", { cwd: wt.path, encoding: "utf-8" }).trim();
+              const indexPath = join(resolvePath(wt.path, gitDir), "index");
+              if (existsSync(indexPath)) {
+                lastActive = statSync(indexPath).mtimeMs;
+              }
+            } catch {}
+            if (!lastActive) {
+              try {
+                const commitTime = execSync("git log -1 --format=%ct", { cwd: wt.path, encoding: "utf-8" }).trim();
+                if (commitTime) lastActive = Number(commitTime) * 1000;
+              } catch {}
+            }
+            if (!lastActive) {
+              try {
+                lastActive = statSync(wt.path).mtimeMs;
+              } catch {}
+            }
+            return { ...wt, lastActive };
+          });
+
+          withActivity.sort((a, b) => b.lastActive - a.lastActive);
+          return json({ ok: true, worktrees: withActivity });
         } catch (err) {
           return json({ ok: true, worktrees: [] });
         }
