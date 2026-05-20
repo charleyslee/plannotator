@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useSessionFetch } from '../../hooks/useSessionFetch';
 import {
   getObsidianSettings,
   saveObsidianSettings,
@@ -10,8 +9,11 @@ import {
 } from '../../utils/obsidian';
 import { ToggleSwitch } from './shared';
 
-export const ObsidianTab: React.FC = () => {
-  const fetch = useSessionFetch();
+interface ObsidianTabProps {
+  fetchFn?: typeof globalThis.fetch;
+}
+
+export const ObsidianTab: React.FC<ObsidianTabProps> = ({ fetchFn = globalThis.fetch }) => {
   const [obsidian, setObsidian] = useState<ObsidianSettings>(() => getObsidianSettings());
   const [detectedVaults, setDetectedVaults] = useState<string[]>([]);
   const [vaultsLoading, setVaultsLoading] = useState(false);
@@ -25,7 +27,7 @@ export const ObsidianTab: React.FC = () => {
   useEffect(() => {
     if (!obsidian.enabled || detectedVaults.length > 0 || vaultsLoading) return;
     setVaultsLoading(true);
-    fetch('/api/obsidian/vaults')
+    fetchFn('/api/obsidian/vaults')
       .then((r) => r.json())
       .then((data: { vaults?: string[] }) => {
         const vaults = data.vaults ?? [];

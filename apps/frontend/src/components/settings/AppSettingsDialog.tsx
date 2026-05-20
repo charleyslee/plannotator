@@ -86,6 +86,11 @@ export function AppSettingsDialog() {
   const [aiProviders, setAiProviders] = useState<Array<{ id: string; name: string; capabilities: Record<string, boolean> }>>([]);
   const [aiProviderId, setAiProviderId] = useState<string | null>(() => getAIProviderSettings().providerId);
 
+  // Re-read AI provider on each open (could have changed via per-surface settings)
+  useEffect(() => {
+    if (open) setAiProviderId(getAIProviderSettings().providerId);
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     fetch("/api/ai/capabilities")
@@ -164,7 +169,7 @@ export function AppSettingsDialog() {
 
             {/* Plan Review */}
             <TabsContent value="plan-general">
-              <PlanGeneralTab origin={activeOrigin as any} />
+              <PlanGeneralTab origin={activeOrigin} />
             </TabsContent>
             <TabsContent value="plan-display">
               <PlanDisplayTab />

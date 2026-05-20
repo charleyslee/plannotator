@@ -14,7 +14,7 @@ import {
 import { useAgents } from '../../hooks/useAgents';
 
 interface PlanGeneralTabProps {
-  origin?: Origin | null;
+  origin?: Origin | string | null;
 }
 
 export const PlanGeneralTab: React.FC<PlanGeneralTabProps> = ({ origin }) => {
@@ -23,7 +23,7 @@ export const PlanGeneralTab: React.FC<PlanGeneralTabProps> = ({ origin }) => {
   );
   const [agent, setAgent] = useState(() => getAgentSwitchSettings());
   const [agentWarning, setAgentWarning] = useState<string | null>(null);
-  const { agents: availableAgents } = useAgents(origin);
+  const { agents: availableAgents } = useAgents((origin as Origin) ?? null);
 
   const handlePermissionModeChange = (mode: PermissionMode) => {
     setPermissionMode(mode);
