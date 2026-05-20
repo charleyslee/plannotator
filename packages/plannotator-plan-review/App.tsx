@@ -98,7 +98,7 @@ type NoteAutoSaveResults = {
   octarine?: boolean;
 };
 
-const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({ __embedded, headerLeft }) => {
+const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; onOpenSettings?: () => void }> = ({ __embedded, headerLeft, onOpenSettings: externalOpenSettings }) => {
   const fetch = useSessionFetch();
   const rootRef = useRef<HTMLDivElement>(null);
   const isVisible = useCallback(() => {
@@ -1668,7 +1668,10 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
   const handleHeaderDownloadAnnotations = useCallback(() => headerHandlersRef.current.handleDownloadAnnotations(), []);
   const handleHeaderCopyAgentInstructions = useCallback(() => headerHandlersRef.current.handleCopyAgentInstructions(), []);
   const handleHeaderCopyShareLink = useCallback(() => headerHandlersRef.current.handleCopyShareLink(), []);
-  const handleOpenSettings = useCallback(() => setMobileSettingsOpen(true), []);
+  const handleOpenSettings = useCallback(() => {
+    if (externalOpenSettings) { externalOpenSettings(); return; }
+    setMobileSettingsOpen(true);
+  }, [externalOpenSettings]);
   const handleCloseSettings = useCallback(() => setMobileSettingsOpen(false), []);
   const handleOpenExport = useCallback(() => { setInitialExportTab(undefined); setShowExport(true); }, []);
   const handlePrint = useCallback(() => window.print(), []);
@@ -2262,6 +2265,6 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({
 
 export default App;
 
-export function PlanAppEmbedded({ headerLeft }: { headerLeft?: React.ReactNode }) {
-  return <App __embedded headerLeft={headerLeft} />;
+export function PlanAppEmbedded({ headerLeft, onOpenSettings }: { headerLeft?: React.ReactNode; onOpenSettings?: () => void }) {
+  return <App __embedded headerLeft={headerLeft} onOpenSettings={onOpenSettings} />;
 }

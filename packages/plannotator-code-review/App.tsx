@@ -133,7 +133,7 @@ function getFileTabTitle(filePath: string): string {
   return filePath.split('/').pop() ?? filePath;
 }
 
-const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }> = ({ __embedded, headerLeft }) => {
+const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; onOpenSettings?: () => void }> = ({ __embedded, headerLeft, onOpenSettings: externalOpenSettings }) => {
   const fetch = useSessionFetch();
   const { resolvedMode } = useTheme();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -2074,7 +2074,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
             <div className="w-px h-5 bg-border/50 mx-1 hidden md:block" />
 
             <ReviewHeaderMenu
-              onOpenSettings={() => setOpenSettingsMenu(true)}
+              onOpenSettings={() => { if (externalOpenSettings) { externalOpenSettings(); return; } setOpenSettingsMenu(true); }}
               onOpenExport={() => setShowExportModal(true)}
               onToggleFileTree={() => setIsFileTreeOpen(prev => !prev)}
               onToggleSidebar={() => reviewSidebar.isOpen ? reviewSidebar.close() : reviewSidebar.open()}
@@ -2525,7 +2525,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode }
 
 export default ReviewApp;
 
-export function ReviewAppEmbedded({ headerLeft }: { headerLeft?: React.ReactNode }) {
-  return <ReviewApp __embedded headerLeft={headerLeft} />;
+export function ReviewAppEmbedded({ headerLeft, onOpenSettings }: { headerLeft?: React.ReactNode; onOpenSettings?: () => void }) {
+  return <ReviewApp __embedded headerLeft={headerLeft} onOpenSettings={onOpenSettings} />;
 }
 
