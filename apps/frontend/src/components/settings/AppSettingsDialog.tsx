@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Settings } from "lucide-react";
 import {
   Dialog,
@@ -21,6 +21,7 @@ import { ThemeTab } from "@plannotator/ui/components/ThemeTab";
 import { KeyboardShortcuts } from "@plannotator/ui/components/KeyboardShortcuts";
 import { AISettingsTab } from "@plannotator/ui/components/AISettingsTab";
 import { HooksTab } from "@plannotator/ui/components/settings/HooksTab";
+import { getAIProviderSettings, saveAIProviderSettings } from "@plannotator/ui/utils/aiProvider";
 
 interface TabDef {
   id: string;
@@ -68,11 +69,45 @@ export function AppSettingsDialog() {
   const setOpen = useAppStore((s) => s.setSettingsOpen);
   const [activeTab, setActiveTab] = useState("general");
 
+  // Force re-mount of tab content when dialog opens to ensure fresh state
+  const [mountKey, setMountKey] = useState(0);
+  useEffect(() => {
+    if (open) setMountKey((k) => k + 1);
+  }, [open]);
+
+  // Detect origin from the active session (if any)
+  const activeSessionId = useAppStore((s) => s.activeSessionId);
+  const visitedSessions = useAppStore((s) => s.visitedSessions);
+  const activeOrigin = activeSessionId
+    ? (visitedSessions[activeSessionId]?.bootstrap.session.origin as string | undefined) ?? null
+    : null;
+
+  // AI provider state — fetched once when dialog opens
+  const [aiProviders, setAiProviders] = useState<Array<{ id: string; name: string; capabilities: Record<string, boolean> }>>([]);
+  const [aiProviderId, setAiProviderId] = useState<string | null>(() => getAIProviderSettings().providerId);
+
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/ai/capabilities")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.providers) setAiProviders(data.providers);
+      })
+      .catch(() => {});
+  }, [open]);
+
+  const handleAiProviderChange = useCallback((providerId: string | null) => {
+    setAiProviderId(providerId);
+    const current = getAIProviderSettings();
+    saveAIProviderSettings({ ...current, providerId });
+  }, []);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="p-0">
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <Tabs
+          key={mountKey}
           value={activeTab}
           onValueChange={setActiveTab}
           orientation="vertical"
@@ -129,7 +164,7 @@ export function AppSettingsDialog() {
 
             {/* Plan Review */}
             <TabsContent value="plan-general">
-              <PlanGeneralTab />
+              <PlanGeneralTab origin={activeOrigin as any} />
             </TabsContent>
             <TabsContent value="plan-display">
               <PlanDisplayTab />
@@ -155,7 +190,11 @@ export function AppSettingsDialog() {
               <CommentsTab />
             </TabsContent>
             <TabsContent value="review-ai">
-              <AISettingsTab />
+              <AISettingsTab
+                providers={aiProviders}
+                selectedProviderId={aiProviderId}
+                onProviderChange={handleAiProviderChange}
+              />
             </TabsContent>
 
             {/* Integrations */}

@@ -37,7 +37,8 @@ function LayoutContent() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === ",") {
         e.preventDefault();
-        appStore.getState().setSettingsOpen(true);
+        const current = appStore.getState().settingsOpen;
+        appStore.getState().setSettingsOpen(!current);
       }
     };
     window.addEventListener("keydown", handler);
