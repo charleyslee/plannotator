@@ -192,24 +192,20 @@ function ProjectNode({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [worktrees, setWorktrees] = useState<WorktreeEntry[]>([]);
-  const [loadingWorktrees, setLoadingWorktrees] = useState(false);
+  const [worktreesFetched, setWorktreesFetched] = useState(false);
   const hasChildren = children.length > 0;
 
-  const handleToggle = useCallback(async () => {
-    if (expanded) {
-      setExpanded(false);
-      return;
-    }
-    setExpanded(true);
-    if (worktrees.length === 0 && !loadingWorktrees) {
-      setLoadingWorktrees(true);
-      const result = await daemonApiClient.listWorktrees(project.cwd);
+  useEffect(() => {
+    if (worktreesFetched) return;
+    setWorktreesFetched(true);
+    daemonApiClient.listWorktrees(project.cwd).then((result) => {
       if (result.ok) {
         setWorktrees(result.data.worktrees.filter((wt) => wt.path !== project.cwd));
       }
-      setLoadingWorktrees(false);
-    }
-  }, [expanded, worktrees.length, loadingWorktrees, project.cwd]);
+    });
+  }, [project.cwd, worktreesFetched]);
+
+  const hasWorktrees = hasChildren || worktrees.length > 0;
 
   const isSelected = selectedCwd === project.cwd;
 
@@ -224,10 +220,10 @@ function ProjectNode({
             : "text-muted-foreground hover:bg-surface-1/50 hover:text-foreground",
         )}
       >
-        {(hasChildren || true) && (
+        {hasWorktrees ? (
           <button
             type="button"
-            onClick={handleToggle}
+            onClick={() => setExpanded((prev) => !prev)}
             className="flex shrink-0 items-center justify-center px-1.5 py-2 text-muted-foreground/60 hover:text-foreground"
           >
             {expanded ? (
@@ -236,6 +232,8 @@ function ProjectNode({
               <ChevronRight className="size-3" />
             )}
           </button>
+        ) : (
+          <div className="w-7 shrink-0" />
         )}
         <button
           type="button"
@@ -256,6 +254,9 @@ function ProjectNode({
 
       {expanded && (
         <>
+          <div className="border-t border-border/40 py-1.5 pl-9 pr-3">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">Worktrees</span>
+          </div>
           {children.map((child) => (
             <button
               key={child.cwd}
@@ -293,11 +294,6 @@ function ProjectNode({
               </button>
             );
           })}
-          {loadingWorktrees && (
-            <div className="border-t border-border/40 py-2 pl-9 pr-3 text-[11px] text-muted-foreground/60">
-              Loading worktrees...
-            </div>
-          )}
         </>
       )}
     </>
