@@ -133,10 +133,27 @@ function getFileTabTitle(filePath: string): string {
   return filePath.split('/').pop() ?? filePath;
 }
 
+function useSessionVisible(rootRef: React.RefObject<HTMLElement | null>): boolean {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const container = el.parentElement;
+    if (!container) return;
+    const check = () => setVisible(getComputedStyle(el).visibility !== 'hidden');
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(container, { attributes: true, attributeFilter: ['style'] });
+    return () => observer.disconnect();
+  }, []);
+  return visible;
+}
+
 const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; onOpenSettings?: () => void }> = ({ __embedded, headerLeft, onOpenSettings: externalOpenSettings }) => {
   const fetch = useSessionFetch();
   const { resolvedMode } = useTheme();
   const rootRef = useRef<HTMLDivElement>(null);
+  const sessionVisible = useSessionVisible(rootRef);
   const isVisible = useCallback(() => {
     if (!rootRef.current) return true;
     return getComputedStyle(rootRef.current).visibility !== 'hidden';
@@ -164,10 +181,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
   const diffHideWhitespace = useConfigValue('diffHideWhitespace');
   const diffFontFamily = useConfigValue('diffFontFamily');
   const diffFontSize = useConfigValue('diffFontSize');
-  const diffTabSize = useConfigValue('diffTabSize');
 
-  // Load custom diff font and set CSS vars on the session container (not document root)
-  // so multiple sessions don't stomp each other's font overrides.
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
@@ -184,14 +198,12 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
       el.style.removeProperty('--diff-font-size-override');
       el.classList.remove('has-font-size-override');
     }
-    el.style.setProperty('--diffs-tab-size', String(diffTabSize));
     return () => {
       el.style.removeProperty('--diff-font-override');
       el.style.removeProperty('--diff-font-size-override');
-      el.style.removeProperty('--diffs-tab-size');
       el.classList.remove('has-font-size-override');
     };
-  }, [diffFontFamily, diffFontSize, diffTabSize]);
+  }, [diffFontFamily, diffFontSize]);
 
   const reviewSidebar = useSidebar<ReviewSidebarTab>(true, 'annotations');
   const [isFileTreeOpen, setIsFileTreeOpen] = useState(true);
@@ -229,11 +241,9 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
   const [repoInfo, setRepoInfo] = useState<{ display: string; branch?: string } | null>(null);
 
   useEffect(() => {
-    if (!isVisible()) return;
-    const prev = document.title;
+    if (!sessionVisible) return;
     document.title = repoInfo ? `${repoInfo.display} · Code Review` : "Code Review";
-    return () => { document.title = prev; };
-  }, [repoInfo, isVisible]);
+  }, [repoInfo, sessionVisible]);
 
   const { prMetadata, prStackInfo, prStackTree, prDiffScope, prDiffScopeOptions, updatePRSession } = usePRSession();
   const { withPRContext } = useAnnotationFactory(prMetadata, prStackInfo ? prDiffScope : undefined);

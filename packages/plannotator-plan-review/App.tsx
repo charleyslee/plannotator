@@ -98,9 +98,26 @@ type NoteAutoSaveResults = {
   octarine?: boolean;
 };
 
+function useSessionVisible(rootRef: React.RefObject<HTMLElement | null>): boolean {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const container = el.parentElement;
+    if (!container) return;
+    const check = () => setVisible(getComputedStyle(el).visibility !== 'hidden');
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(container, { attributes: true, attributeFilter: ['style'] });
+    return () => observer.disconnect();
+  }, []);
+  return visible;
+}
+
 const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; onOpenSettings?: () => void }> = ({ __embedded, headerLeft, onOpenSettings: externalOpenSettings }) => {
   const fetch = useSessionFetch();
   const rootRef = useRef<HTMLDivElement>(null);
+  const sessionVisible = useSessionVisible(rootRef);
   const isVisible = useCallback(() => {
     if (!rootRef.current) return true;
     return getComputedStyle(rootRef.current).visibility !== 'hidden';
@@ -184,11 +201,9 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; onOpen
   const goalSetupMode = goalSetupBundle !== null;
 
   useEffect(() => {
-    if (!isVisible()) return;
-    const prev = document.title;
+    if (!sessionVisible) return;
     document.title = repoInfo ? `${repoInfo.display} · Plannotator` : "Plannotator";
-    return () => { document.title = prev; };
-  }, [repoInfo, isVisible]);
+  }, [repoInfo, sessionVisible]);
 
   const [initialExportTab, setInitialExportTab] = useState<'share' | 'annotations' | 'notes'>();
   const [isPlanDiffActive, setIsPlanDiffActive] = useState(false);
