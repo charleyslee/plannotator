@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Code2, Archive, Folder, FolderPlus, ChevronRight, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ASCII_BANNER } from "./ascii-banner";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useProjectStore } from "../../stores/project-store";
 import { useDaemonEventStore } from "../../daemon/events/event-store";
@@ -55,6 +56,10 @@ export function LandingPage({ onAddProject }: LandingPageProps) {
         <div className="h-full overflow-hidden rounded-xl bg-card shadow-[var(--card-shadow)]">
           <main className="flex h-full items-center justify-center overflow-auto">
             <div className="w-full max-w-2xl px-6">
+              <pre className="mb-8 overflow-x-auto text-[5px] leading-[1.2] text-muted-foreground/30 sm:text-[6px] md:text-[7px]" aria-hidden="true">
+                {ASCII_BANNER}
+              </pre>
+
               {projects.length === 0 && sessions.length === 0 ? (
                 <EmptyState onAddProject={onAddProject} />
               ) : (
