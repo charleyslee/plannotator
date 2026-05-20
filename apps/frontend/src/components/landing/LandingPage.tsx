@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Code2, Archive, Folder, FolderPlus, GitBranch, ChevronRight, ChevronDown } from "lucide-react";
+import { Code2, Archive, Folder, FolderPlus, ChevronRight, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -211,46 +211,36 @@ function ProjectNode({
 
   return (
     <>
-      <div
+      <button
+        type="button"
+        onClick={() => onSelect({ cwd: project.cwd, label: project.name })}
         className={cn(
-          "flex w-full items-center text-left text-[13px] transition-colors",
+          "flex w-full items-center gap-3 px-3 py-2 text-left text-[13px] transition-colors",
           !isFirst && "border-t border-border/40",
           isSelected
             ? "bg-primary/8 text-foreground"
             : "text-muted-foreground hover:bg-surface-1/50 hover:text-foreground",
         )}
       >
-        {hasWorktrees ? (
-          <button
-            type="button"
-            onClick={() => setExpanded((prev) => !prev)}
-            className="flex shrink-0 items-center justify-center px-1.5 py-2 text-muted-foreground/60 hover:text-foreground"
-          >
-            {expanded ? (
-              <ChevronDown className="size-3" />
-            ) : (
-              <ChevronRight className="size-3" />
-            )}
-          </button>
-        ) : (
-          <div className="w-7 shrink-0" />
+        <Folder className="size-3.5 shrink-0" />
+        <span className="font-medium">{project.name}</span>
+        {project.branch && (
+          <span className="text-[11px] opacity-60">{project.branch}</span>
         )}
-        <button
-          type="button"
-          onClick={() => onSelect({ cwd: project.cwd, label: project.name })}
-          className="flex flex-1 items-center gap-2 py-2 pr-3"
-        >
-          <Folder className="size-3.5 shrink-0" />
-          <span className="font-medium">{project.name}</span>
-          {project.branch && (
-            <span className="flex items-center gap-1 text-[11px] opacity-60">
-              <GitBranch className="size-3" />
-              {project.branch}
-            </span>
-          )}
-          <span className="ml-auto truncate text-[11px] opacity-60">{project.cwd}</span>
-        </button>
-      </div>
+        <span className="ml-auto truncate text-[11px] opacity-60">{project.cwd}</span>
+        {hasWorktrees && (
+          <span
+            role="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded((prev) => !prev);
+            }}
+            className="shrink-0 rounded p-0.5 text-muted-foreground/50 hover:bg-surface-1 hover:text-foreground"
+          >
+            {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+          </span>
+        )}
+      </button>
 
       {expanded && (
         <>
@@ -269,7 +259,6 @@ function ProjectNode({
                   : "text-muted-foreground hover:bg-surface-1/50 hover:text-foreground",
               )}
             >
-              <GitBranch className="size-3.5 shrink-0" />
               <span className="font-medium">{child.branch ?? child.name}</span>
               <span className="ml-auto truncate text-[11px] opacity-60">{child.cwd}</span>
             </button>
@@ -288,7 +277,6 @@ function ProjectNode({
                     : "text-muted-foreground hover:bg-surface-1/50 hover:text-foreground",
                 )}
               >
-                <GitBranch className="size-3.5 shrink-0" />
                 <span className="font-medium">{wt.branch ?? "detached"}</span>
                 <span className="ml-auto truncate text-[11px] opacity-60">{wt.path}</span>
               </button>
