@@ -59,14 +59,23 @@ export function createProjectStore(initial: Partial<ProjectStoreState> = {}) {
           return undefined;
         }
         const entry = result.data.project;
-        set((state) => {
-          const idx = state.projects.findIndex((p) => p.name === entry.name);
-          if (idx >= 0) {
-            state.projects[idx] = entry;
-          } else {
-            state.projects.unshift(entry);
+        if (entry.parentCwd) {
+          const listResult = await client.listProjects();
+          if (listResult.ok) {
+            set((state) => {
+              state.projects = listResult.data.projects;
+            });
           }
-        });
+        } else {
+          set((state) => {
+            const idx = state.projects.findIndex((p) => p.cwd === entry.cwd);
+            if (idx >= 0) {
+              state.projects[idx] = entry;
+            } else {
+              state.projects.unshift(entry);
+            }
+          });
+        }
         return entry;
       },
 
