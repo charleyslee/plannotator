@@ -14,6 +14,7 @@ import { getBearSettings } from '../../utils/bear';
 import { getOctarineSettings } from '../../utils/octarine';
 import { isMac } from '../../utils/platform';
 import { ToggleSwitch } from './shared';
+import { useEffect } from 'react';
 
 const modKey = isMac ? '⌘' : 'Ctrl';
 
@@ -31,6 +32,12 @@ export const SavingTab: React.FC<SavingTabProps> = ({ onNavigateTab }) => {
   const obsidianAvailable = obsidian.enabled && getEffectiveVaultPath(obsidian).trim().length > 0;
   const bearAvailable = bear.enabled;
   const octarineAvailable = octarine.enabled && (octarine.workspace?.trim().length ?? 0) > 0;
+
+  useEffect(() => {
+    if (defaultNotesApp === 'obsidian' && !obsidianAvailable) handleDefaultNotesAppChange('ask');
+    else if (defaultNotesApp === 'bear' && !bearAvailable) handleDefaultNotesAppChange('ask');
+    else if (defaultNotesApp === 'octarine' && !octarineAvailable) handleDefaultNotesAppChange('ask');
+  });
 
   const handlePlanSaveChange = (updates: Partial<PlanSaveSettings>) => {
     const next = { ...planSave, ...updates };
@@ -86,6 +93,13 @@ export const SavingTab: React.FC<SavingTabProps> = ({ onNavigateTab }) => {
           {bearAvailable && <option value="bear">Bear</option>}
           {octarineAvailable && <option value="octarine">Octarine</option>}
         </select>
+        <div className="text-[10px] text-muted-foreground">
+          {defaultNotesApp === 'ask'
+            ? 'Opens Export dialog with Notes tab'
+            : defaultNotesApp === 'download'
+              ? `${modKey}+S downloads the annotations file`
+              : `${modKey}+S saves directly to ${{ obsidian: 'Obsidian', bear: 'Bear', octarine: 'Octarine' }[defaultNotesApp] ?? defaultNotesApp}`}
+        </div>
       </div>
 
       {onNavigateTab && (

@@ -2342,19 +2342,21 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
           </div>
         )}
 
-        <div className="hidden" aria-hidden="true">
-          <Settings
-            taterMode={false}
-            onTaterModeChange={() => {}}
-            onIdentityChange={handleIdentityChange}
-            origin={origin}
-            mode="review"
-            aiProviders={aiProviders}
-            gitUser={gitUser}
-            externalOpen={openSettingsMenu}
-            onExternalClose={() => setOpenSettingsMenu(false)}
-          />
-        </div>
+        {!externalOpenSettings && (
+          <div className="hidden" aria-hidden="true">
+            <Settings
+              taterMode={false}
+              onTaterModeChange={() => {}}
+              onIdentityChange={handleIdentityChange}
+              origin={origin}
+              mode="review"
+              aiProviders={aiProviders}
+              gitUser={gitUser}
+              externalOpen={openSettingsMenu}
+              onExternalClose={() => setOpenSettingsMenu(false)}
+            />
+          </div>
+        )}
 
         {/* Worktree info dialog */}
         {(gitContext?.cwd || agentCwd) && prMetadata && (

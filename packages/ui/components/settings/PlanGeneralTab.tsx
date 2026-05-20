@@ -83,6 +83,9 @@ export const PlanGeneralTab: React.FC<PlanGeneralTabProps> = ({ origin }) => {
           </div>
           {agentWarning && (
             <div className="flex items-start gap-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-600 dark:text-amber-400">
+              <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
               <span>{agentWarning}</span>
             </div>
           )}
@@ -96,6 +99,13 @@ export const PlanGeneralTab: React.FC<PlanGeneralTabProps> = ({ origin }) => {
           >
             {availableAgents.length > 0 ? (
               <>
+                {agent.switchTo !== 'custom' &&
+                 agent.switchTo !== 'disabled' &&
+                 !availableAgents.some((a) => a.id.toLowerCase() === agent.switchTo.toLowerCase()) && (
+                  <option value={agent.switchTo} disabled>
+                    {agent.switchTo} (not found)
+                  </option>
+                )}
                 {availableAgents.map((a) => (
                   <option key={a.id} value={a.id}>{a.name}</option>
                 ))}

@@ -37,6 +37,9 @@ export const OctarineTab: React.FC = () => {
               placeholder="My Workspace"
               className="w-full px-3 py-2 bg-muted rounded-lg text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
+            <div className="text-[10px] text-muted-foreground">
+              The Octarine workspace name to save plans into.
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -48,6 +51,9 @@ export const OctarineTab: React.FC = () => {
               placeholder="plannotator"
               className="w-full px-3 py-2 bg-muted rounded-lg text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
+            <div className="text-[10px] text-muted-foreground">
+              Subfolder within the workspace for saved plans.
+            </div>
           </div>
 
           <div className="text-[10px] text-muted-foreground">

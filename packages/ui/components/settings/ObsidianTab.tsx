@@ -133,6 +133,9 @@ export const ObsidianTab: React.FC<ObsidianTabProps> = ({ fetchFn = globalThis.f
                 className="w-full px-3 py-2 bg-muted rounded-lg text-xs font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
               />
               <div className="text-[10px] text-muted-foreground">
+                Variables: <code className="text-[10px]">{'{title}'}</code> <code className="text-[10px]">{'{YYYY}'}</code> <code className="text-[10px]">{'{MM}'}</code> <code className="text-[10px]">{'{DD}'}</code> <code className="text-[10px]">{'{Mon}'}</code> <code className="text-[10px]">{'{D}'}</code> <code className="text-[10px]">{'{HH}'}</code> <code className="text-[10px]">{'{h}'}</code> <code className="text-[10px]">{'{hh}'}</code> <code className="text-[10px]">{'{mm}'}</code> <code className="text-[10px]">{'{ss}'}</code> <code className="text-[10px]">{'{ampm}'}</code>
+              </div>
+              <div className="text-[10px] text-muted-foreground">
                 Preview: {filenamePreview}
               </div>
             </div>
@@ -148,10 +151,24 @@ export const ObsidianTab: React.FC<ObsidianTabProps> = ({ fetchFn = globalThis.f
                 <option value="dash">Dashes (-)</option>
                 <option value="underscore">Underscores (_)</option>
               </select>
+              <div className="text-[10px] text-muted-foreground">
+                Replaces spaces in the generated filename. Useful when working with CLI tools in your vault.
+              </div>
             </div>
 
             <div className="text-[10px] text-muted-foreground">
               Plans saved to: {getEffectiveVaultPath(obsidian) || '…'}/{obsidian.folder || 'plannotator'}/
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Frontmatter (auto-generated)</label>
+              <pre className="px-3 py-2 bg-muted/50 rounded-lg text-[10px] font-mono text-muted-foreground overflow-x-auto">
+{`---
+created: ${new Date().toISOString().slice(0, 19)}Z
+source: plannotator
+tags: [plan, ...]
+---`}
+              </pre>
             </div>
 
             <div className="border-t border-border" />

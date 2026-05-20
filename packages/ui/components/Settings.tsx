@@ -240,6 +240,7 @@ export const ReviewDisplayTab: React.FC = () => {
   const diffHideWhitespace = useConfigValue('diffHideWhitespace');
   const diffFontFamily = useConfigValue('diffFontFamily');
   const diffFontSize = useConfigValue('diffFontSize');
+  const diffTabSize = useConfigValue('diffTabSize');
 
   // Load font for the preview swatch
   useEffect(() => {
@@ -391,6 +392,35 @@ export const ReviewDisplayTab: React.FC = () => {
         label="Hide Whitespace"
         description="Ignore whitespace-only changes in diffs"
       />
+
+      <div className="border-t border-border" />
+
+      {/* Tab Size */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-medium">Tab Size</div>
+          <div className="text-xs text-muted-foreground">Number of spaces per tab character</div>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => configStore.set('diffTabSize', Math.max(1, diffTabSize - 1))}
+            disabled={diffTabSize <= 1}
+            className="h-7 w-7 rounded-md bg-muted text-foreground flex items-center justify-center text-xs font-medium disabled:opacity-30"
+          >
+            −
+          </button>
+          <span className="w-6 text-center text-sm font-mono tabular-nums">{diffTabSize}</span>
+          <button
+            type="button"
+            onClick={() => configStore.set('diffTabSize', Math.min(8, diffTabSize + 1))}
+            disabled={diffTabSize >= 8}
+            className="h-7 w-7 rounded-md bg-muted text-foreground flex items-center justify-center text-xs font-medium disabled:opacity-30"
+          >
+            +
+          </button>
+        </div>
+      </div>
 
     </>
   );
