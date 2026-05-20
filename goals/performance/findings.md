@@ -1,8 +1,8 @@
 # Performance Findings — Multi-Session Frontend
 
-Comprehensive sweep of performance killers in the multi-session keep-alive architecture. The app feels generally slow with 3+ sessions open — not during specific actions, but across all interactions including settings, theme changes, and basic navigation.
+Comprehensive sweep of performance killers in the multi-session keep-alive architecture. The app feels generally slow with 3+ sessions open — not during specific actions, but during normal use: scrolling, clicking files, hovering, navigating.
 
-## Critical Findings
+## Tier 1 — Causes general sluggishness during normal use
 
 ### 1. SessionSurface is not memoized
 
@@ -10,7 +10,7 @@ Comprehensive sweep of performance killers in the multi-session keep-alive archi
 
 Every time Layout re-renders — sidebar toggle, session switch, dialog open/close, `addProjectOpen` changing — React walks the ENTIRE component tree of EVERY mounted session. Layout re-renders frequently because it subscribes to `activeSessionId`, `visitedSessions`, `addProjectOpen`, and `useSidebar()` (context).
 
-With 3 sessions mounted: every sidebar toggle triggers 3 full code-review tree reconciliations. This is the single largest contributor to general sluggishness.
+With 3 sessions mounted: every sidebar toggle triggers 3 full code-review tree reconciliations.
 
 ### 2. DOM weight with visibility:hidden
 
@@ -22,63 +22,96 @@ With 3 sessions: 60,000–120,000 nodes in the layout tree.
 
 `content-visibility: hidden` would tell the browser to skip layout AND style recalculation entirely on hidden subtrees. Currently not used.
 
-### 3. configStore broadcasts to all subscribers
+### 3. 57 useState in App.tsx — the monolith re-renders on every interaction
 
-`packages/ui/config/configStore.ts` — the `notify()` method calls every listener in `Set<Listener>` on ANY setting change. With 14 `useConfigValue` calls per code review session × 3 sessions = 42 synchronous `getSnapshot` invocations per single setting change. Even when values haven't changed, React must run each snapshot function to verify.
+`packages/plannotator-code-review/App.tsx` has 57 `useState` calls. ANY state change re-renders the entire 2500-line component. This includes:
+- `allFilesVisibleFile` — set on file-boundary crossings while scrolling diffs (line 1425)
+- `splitRatio` — set on every pointer pixel during split handle drag
+- `isAllFilesActive` / `isDiffPanelActive` — set on every dockview panel focus change
 
-`configStore.init()` is worse — it overwrites all server-synced keys and calls `notify()` once, triggering all 42 subscribers to check all their values.
+Every one of these state changes cascades to the unmemoized `ReviewSidebar` and all other children.
 
-### 4. ThemeProvider is a React context shared across all sessions
+### 4. ReviewSidebar has React.memo explicitly commented out
 
-`packages/ui/components/ThemeProvider.tsx` wraps the entire app. When theme changes, every `useTheme()` consumer in every mounted session re-renders. Per code review session: `usePierreTheme`, `DiffHunkPreview`, `ReviewHeaderMenu` — at minimum 3 components × N sessions.
+`packages/plannotator-code-review/components/ReviewSidebar.tsx` line 108 — `/* React.memo */` is commented out. ReviewSidebar is a child of the 2500-line App.tsx. Every one of App's 57 state changes triggers a ReviewSidebar reconciliation.
 
-## High-Impact Findings
-
-### 5. ToolbarHost registers global mousemove with no visibility guard
-
-`packages/plannotator-code-review/components/ToolbarHost.tsx` line 92: `window.addEventListener('mousemove', handleMouseMove)` — fires on every mouse movement for every mounted session. The handler only writes to a ref (no re-render), but it's N function calls per mouse pixel across all sessions.
-
-### 6. ScrollFade double setState on every scroll tick
-
-`packages/plannotator-code-review/components/ScrollFade.tsx` calls `setShowTop` and `setShowBottom` on its scroll handler with no equality guard. Every scroll event triggers 2 state updates and a re-render of the file tree panel.
-
-### 7. FileHeader has a ResizeObserver per file
-
-`packages/plannotator-code-review/components/FileHeader.tsx` line 71 — each file header creates its own `ResizeObserver` that calls `setHeaderWidth`. During window resize, N observers fire N `setState` calls simultaneously across all files in all sessions. No quantization.
-
-### 8. ReviewSidebar has React.memo explicitly commented out
-
-`packages/plannotator-code-review/components/ReviewSidebar.tsx` line 108 — `/* React.memo */` is commented out. ReviewSidebar is a child of the 2500-line App.tsx. Every one of App's 57 `useState` changes triggers a ReviewSidebar reconciliation, including scroll-driven state updates.
-
-### 9. Pierre diffs never unmount
-
-`packages/plannotator-code-review/components/LazyFileDiff.tsx` — `mounted` state is only ever set to `true`, never back to `false`. `AllFilesDiffView` has no cleanup path. Once a file diff is mounted by `IntersectionObserver`, it stays in the DOM permanently. Node count is monotonically increasing per session throughout its lifetime.
-
-### 10. Sessions are never evicted from visitedSessions
+### 5. Sessions are never evicted from visitedSessions
 
 `apps/frontend/src/stores/app-store.ts` — `removeSession` is defined but never called anywhere in the codebase. Sessions only accumulate. A user who opens 10 sessions over a working day has 10 full React trees mounted with ~200,000+ DOM nodes.
 
-## Medium-Impact Findings
+## Tier 2 — Cross-session interference (hidden sessions degrading active session)
 
-### 11. allFilesVisibleFile scroll handler re-renders entire App
+### 6. StickyHeaderLane uses unscoped document.querySelector
 
-`packages/plannotator-code-review/App.tsx` line 1425 — `setAllFilesVisibleFile` is called from `AllFilesDiffView`'s scroll handler on file-boundary crossings. Each call re-renders the entire 2500-line App component.
+`packages/ui/components/StickyHeaderLane.tsx` line 148 — queries `document.querySelector('[data-sticky-actions]')` with no container scoping. With 3 sessions, each StickyHeaderLane finds the FIRST matching element in the document — which belongs to a DIFFERENT session. It then attaches a ResizeObserver to that foreign element. Hidden sessions observe the active session's DOM nodes, firing N-1 extra ResizeObserver callbacks on every layout change.
 
-### 12. splitRatio setState on every pointer move during drag
+### 7. CSS custom property stomping from hidden sessions
+
+`packages/plannotator-code-review/App.tsx` line 170 — sets `document.documentElement.style.setProperty('--diffs-font-family', ...)` etc. when config changes. All sessions write to the same `:root` element. Each `setProperty` invalidates every CSS rule referencing those variables — full global style recalculation across the entire 60k-120k node document.
+
+### 8. ThemeProvider race on document.documentElement.classList
+
+`packages/ui/components/ThemeProvider.tsx` lines 44-57 — every session mounts its own ThemeProvider that strips and re-adds `theme-*` classes on `document.documentElement`. Three ThemeProviders racing to control the document class list. Each write triggers a full-document style recalculation.
+
+### 9. Hidden session paste handlers eat clipboard events
+
+`packages/editor/App.tsx` line 930 — unguarded `document.addEventListener('paste')` in every session. Hidden sessions call `e.preventDefault()` on image pastes, which suppresses the paste from reaching the active session. User's paste gets silently eaten.
+
+### 10. PlanCleanDiffView uses unscoped querySelector + scrollIntoView
+
+`packages/ui/components/plan-diff/PlanCleanDiffView.tsx` lines 103-107 — `document.querySelector('[data-diff-block-index]')` finds elements from ANY session. A hidden session's annotation event can add highlight classes and call `scrollIntoView` on the ACTIVE session's DOM — causing phantom scroll jumps.
+
+### 11. TableOfContents uses unscoped querySelector
+
+`packages/ui/components/TableOfContents.tsx` line 175 — `document.querySelector('[data-block-id="..."]')` finds the first matching element globally. Hidden session TOC clicks scroll the active session's content.
+
+### 12. Hidden session document.title mutation
+
+`packages/plannotator-code-review/App.tsx` line 225 — `useEffect` sets `document.title` on `repoInfo` change with no visibility guard. Hidden sessions overwrite the visible session's title.
+
+### 13. useAnnotationHighlighter capture-phase mouseup in every session
+
+`packages/ui/hooks/useAnnotationHighlighter.ts` line 99 — `document.addEventListener('mouseup', track, true)` with capture phase. All sessions register. Every click fires N capture-phase callbacks. Low per-call cost but adds up.
+
+## Tier 3 — Component-level inefficiencies (within a single session)
+
+### 14. ScrollFade double setState on every scroll tick
+
+`packages/plannotator-code-review/components/ScrollFade.tsx` — calls `setShowTop` and `setShowBottom` on its scroll handler with no equality guard. Every scroll event triggers 2 state updates, re-rendering the file tree panel ~60 times per second while scrolling.
+
+### 15. FileHeader ResizeObserver per file
+
+`packages/plannotator-code-review/components/FileHeader.tsx` line 71 — each file header creates its own `ResizeObserver` that calls `setHeaderWidth`. During window resize, N observers fire N `setState` calls simultaneously. No quantization.
+
+### 16. Pierre diffs never unmount
+
+`packages/plannotator-code-review/components/LazyFileDiff.tsx` — `mounted` state is only ever set to `true`, never back to `false`. Once a file diff is mounted by IntersectionObserver, it stays in the DOM permanently. Node count is monotonically increasing per session throughout its lifetime.
+
+### 17. allFilesVisibleFile scroll handler re-renders entire App
+
+`packages/plannotator-code-review/App.tsx` line 1425 — `setAllFilesVisibleFile` called from scroll handler on file-boundary crossings. Each call re-renders the entire 2500-line App component.
+
+### 18. splitRatio setState on every pointer move
 
 `packages/plannotator-code-review/components/DiffViewer.tsx` — `setSplitRatio` fires on every `pointermove` while dragging the split handle. DiffViewer is not wrapped in `React.memo`.
 
-### 13. useActiveSection fires quad-threshold IntersectionObserver
+### 19. useActiveSection quad-threshold IntersectionObserver
 
 `packages/ui/hooks/useActiveSection.ts` — configured with `threshold: [0, 0.1, 0.5, 1.0]`. Each heading fires up to 4 callbacks per scroll crossing, each calling `setActiveId` with no equality guard.
 
-### 14. Hidden session document.title mutation
+### 20. ToolbarHost global mousemove
 
-`packages/plannotator-code-review/App.tsx` line 225 — `useEffect` sets `document.title` on `repoInfo` change with no visibility guard. A hidden session can overwrite the visible session's title.
+`packages/plannotator-code-review/components/ToolbarHost.tsx` line 92 — `window.addEventListener('mousemove', handleMouseMove)` with no visibility guard. Every mouse movement fires a callback in every mounted session. Handler only writes to a ref (no re-render), but N function calls per mouse move.
 
-### 15. CSS custom property mutation from hidden sessions
+## Tier 4 — Fires intermittently (settings/theme changes only)
 
-`packages/plannotator-code-review/App.tsx` line 170 — sets `document.documentElement.style.setProperty('--diffs-font-family', ...)` when config changes. All sessions write to the same document element. No visibility guard. Last writer wins.
+### 21. configStore broadcasts to all subscribers
+
+`packages/ui/config/configStore.ts` — `notify()` calls every listener on ANY setting change. 14 `useConfigValue` calls per session × N sessions. Only fires when user changes a setting — not during normal use.
+
+### 22. ThemeProvider context re-renders all useTheme consumers
+
+Only fires on theme change. Per session: `usePierreTheme`, `DiffHunkPreview`, `ReviewHeaderMenu` — 3 components × N sessions.
 
 ## What's NOT Causing It
 
