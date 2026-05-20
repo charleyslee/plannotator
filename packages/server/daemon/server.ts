@@ -532,7 +532,10 @@ export function createDaemonFetchHandler(options: DaemonServerOptions): DaemonFe
             }
           }
           if (current.path) worktrees.push({ path: current.path, branch: current.branch ?? null, head: current.head ?? "" });
-          return json({ ok: true, worktrees });
+          const { tmpdir } = await import("os");
+          const tmp = tmpdir();
+          const filtered = worktrees.filter((wt) => !wt.path.startsWith(tmp) && !wt.path.startsWith("/private" + tmp));
+          return json({ ok: true, worktrees: filtered });
         } catch (err) {
           return json({ ok: true, worktrees: [] });
         }
