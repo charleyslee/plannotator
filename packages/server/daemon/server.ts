@@ -18,6 +18,10 @@ import { DaemonEventHub } from "./event-hub";
 import type { SessionEventFamily, SessionRequestContext, SessionSnapshotProvider } from "../session-handler";
 import { handleFavicon } from "../shared-handlers";
 import { addProject, listProjects, removeProject } from "./project-registry";
+import { loadConfig, saveConfig, getServerConfig, detectGitUser } from "@plannotator/shared/config";
+import { detectObsidianVaults } from "../integrations";
+import { readImprovementHook, getImprovementHookExpectedPath } from "@plannotator/shared/improvement-hooks";
+import { composeImproveContext } from "@plannotator/shared/pfm-reminder";
 import { readSnapshot } from "./session-store";
 
 const RESULT_DELETE_GRACE_MS = 2_000;
@@ -589,6 +593,65 @@ export function createDaemonFetchHandler(options: DaemonServerOptions): DaemonFe
         } catch (err) {
           return json({ ok: true, worktrees: [] });
         }
+      }
+
+      // --- Global settings endpoints (no session context needed) ---
+
+      if (url.pathname === "/daemon/config" && req.method === "GET") {
+        const cwd = url.searchParams.get("cwd") ?? undefined;
+        const gitUser = detectGitUser(cwd);
+        return json({ ok: true, config: getServerConfig(gitUser) });
+      }
+
+      if (url.pathname === "/daemon/config" && req.method === "POST") {
+        if (!isJsonRequest(req)) {
+          return json(createDaemonErrorResponse("invalid-request", "Config requests must use application/json."), { status: 415 });
+        }
+        try {
+          const body = (await req.json()) as Record<string, unknown>;
+          const toSave: Record<string, unknown> = {};
+          if (body.displayName !== undefined) toSave.displayName = body.displayName;
+          if (body.diffOptions !== undefined) toSave.diffOptions = body.diffOptions;
+          if (body.conventionalComments !== undefined) toSave.conventionalComments = body.conventionalComments;
+          if (body.conventionalLabels !== undefined) toSave.conventionalLabels = body.conventionalLabels;
+          if (body.pfmReminder !== undefined) toSave.pfmReminder = body.pfmReminder;
+          if (Object.keys(toSave).length > 0) saveConfig(toSave as Parameters<typeof saveConfig>[0]);
+          return json({ ok: true });
+        } catch {
+          return json(createDaemonErrorResponse("invalid-request", "Invalid config request."), { status: 400 });
+        }
+      }
+
+      if (url.pathname === "/daemon/git/user" && req.method === "GET") {
+        const cwd = url.searchParams.get("cwd") ?? undefined;
+        const gitUser = detectGitUser(cwd);
+        return json({ ok: true, gitUser });
+      }
+
+      if (url.pathname === "/daemon/vaults" && req.method === "GET") {
+        const vaults = detectObsidianVaults();
+        return json({ ok: true, vaults });
+      }
+
+      if (url.pathname === "/daemon/hooks/status" && req.method === "GET") {
+        const config = loadConfig();
+        const hook = readImprovementHook("enterplanmode-improve");
+        const pfmEnabled = config.pfmReminder === true;
+        const composed = composeImproveContext({
+          pfmEnabled,
+          improvementHookContent: hook?.content ?? null,
+        });
+        return json({
+          ok: true,
+          pfmReminder: { enabled: pfmEnabled },
+          improvementHook: {
+            present: !!hook,
+            filePath: hook?.filePath ?? getImprovementHookExpectedPath("enterplanmode-improve"),
+            fileSize: hook?.content?.length ?? null,
+            content: hook?.content ?? null,
+          },
+          composedLength: composed?.length ?? null,
+        });
       }
 
       const browserSession = sessionFromPath(url.pathname);

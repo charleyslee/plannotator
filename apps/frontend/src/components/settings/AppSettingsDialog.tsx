@@ -22,6 +22,7 @@ import { KeyboardShortcuts } from "@plannotator/ui/components/KeyboardShortcuts"
 import { AISettingsTab } from "@plannotator/ui/components/AISettingsTab";
 import { HooksTab } from "@plannotator/ui/components/settings/HooksTab";
 import { getAIProviderSettings, saveAIProviderSettings } from "@plannotator/ui/utils/aiProvider";
+import { configStore } from "@plannotator/ui/config";
 
 interface TabDef {
   id: string;
@@ -81,6 +82,29 @@ export function AppSettingsDialog() {
   const activeOrigin = activeSessionId
     ? (visitedSessions[activeSessionId]?.bootstrap.session.origin as string | undefined) ?? null
     : null;
+
+  // Fetch git user and config from daemon on open
+  const [gitUser, setGitUser] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (!open) return;
+    fetch("/daemon/git/user")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data?.gitUser) setGitUser(data.gitUser); })
+      .catch(() => {});
+    fetch("/daemon/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data?.config) configStore.init(data.config); })
+      .catch(() => {});
+  }, [open]);
+
+  // Daemon-routed fetch for tabs that need server calls without session context
+  const daemonFetch = useCallback((input: string, init?: RequestInit) => {
+    const path = typeof input === "string" && input.startsWith("/api/")
+      ? `/daemon${input.slice(4)}`
+      : input;
+    return fetch(path, init);
+  }, []);
 
   // AI provider state — fetched once when dialog opens
   const [aiProviders, setAiProviders] = useState<Array<{ id: string; name: string; capabilities: Record<string, boolean> }>>([]);
@@ -160,8 +184,7 @@ export function AppSettingsDialog() {
           <div className="flex-1 overflow-y-auto p-6">
             {/* General */}
             <TabsContent value="general">
-              {/* gitUser not available at app level — git name button hidden. Available in per-surface settings. */}
-              <GeneralTab />
+              <GeneralTab gitUser={gitUser} />
             </TabsContent>
             <TabsContent value="theme">
               <ThemeTab />
@@ -193,7 +216,7 @@ export function AppSettingsDialog() {
               <LabelsTab />
             </TabsContent>
             <TabsContent value="plan-hooks">
-              <HooksTab />
+              <HooksTab fetchFn={daemonFetch} />
             </TabsContent>
 
             {/* Code Review */}
@@ -219,7 +242,7 @@ export function AppSettingsDialog() {
               <FilesTab />
             </TabsContent>
             <TabsContent value="int-obsidian">
-              <ObsidianTab />
+              <ObsidianTab fetchFn={daemonFetch} />
             </TabsContent>
             <TabsContent value="int-bear">
               <BearTab />

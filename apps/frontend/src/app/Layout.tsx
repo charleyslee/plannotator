@@ -8,7 +8,10 @@ import { AddProjectDialog } from "../components/landing/AddProjectDialog";
 import { AppSettingsDialog } from "../components/settings/AppSettingsDialog";
 import { SessionSurface } from "../components/sessions/SessionSurface";
 import { appStore } from "../stores/app-store";
+import { setGlobalFetchBase } from "@plannotator/ui/utils/api";
 import { useDaemonEvents } from "../daemon/events/use-daemon-events";
+
+setGlobalFetchBase("/daemon");
 import { projectStore } from "../stores/project-store";
 import { useAppStore } from "../stores/app-store";
 
