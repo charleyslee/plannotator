@@ -1,5 +1,5 @@
 ---
-description: Open interactive code review for current changes or a PR URL; pass --git to force Git in JJ workspaces
+description: Open interactive code review for current changes or a PR URL. Defaults to your session's changes; pass --last-turn / --session to scope, --git to force the VCS diff
 allowed-tools: Bash(plannotator:*)
 disable-model-invocation: true
 ---

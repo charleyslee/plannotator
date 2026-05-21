@@ -1,10 +1,18 @@
 import type { VcsSelection } from "./vcs-core";
+import type { AgentDiffType } from "./review-core";
 import { stripWrappingQuotes } from "./resolve-file";
 
 export interface ParsedReviewArgs {
   prUrl?: string;
   vcsType?: VcsSelection;
   useLocal: boolean;
+  /**
+   * Launch directly into a transcript-derived diff: `--last-turn` reviews the
+   * files the agent edited since the last user message, `--session` the whole
+   * session. Local mode only (ignored with a PR URL).
+   */
+  agentDiffType?: AgentDiffType;
+  summaryFile?: string;
 }
 
 export function parseReviewArgs(input: string | string[]): ParsedReviewArgs {
@@ -14,9 +22,12 @@ export function parseReviewArgs(input: string | string[]): ParsedReviewArgs {
 
   let vcsType: VcsSelection | undefined;
   let useLocal = true;
+  let agentDiffType: AgentDiffType | undefined;
+  let summaryFile: string | undefined;
   const positional: string[] = [];
 
-  for (const token of tokens) {
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
     switch (token) {
       case "--git":
         vcsType = "git";
@@ -27,7 +38,20 @@ export function parseReviewArgs(input: string | string[]): ParsedReviewArgs {
       case "--no-local":
         useLocal = false;
         break;
+      case "--last-turn":
+        agentDiffType = "agent-last-turn";
+        break;
+      case "--session":
+        agentDiffType = "agent-session";
+        break;
+      case "--summary-file":
+        summaryFile = tokens[++i];
+        break;
       default:
+        if (token.startsWith("--summary-file=")) {
+          summaryFile = token.slice("--summary-file=".length);
+          break;
+        }
         positional.push(token);
         break;
     }
@@ -38,6 +62,8 @@ export function parseReviewArgs(input: string | string[]): ParsedReviewArgs {
     prUrl: target && isReviewUrl(target) ? target : undefined,
     vcsType,
     useLocal,
+    agentDiffType,
+    summaryFile,
   };
 }
 

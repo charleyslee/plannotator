@@ -95,6 +95,7 @@ interface DiffData {
   prStackInfo?: PRStackInfo | null;
   prDiffScope?: PRDiffScope;
   prDiffScopeOptions?: PRDiffScopeOption[];
+  agentSummary?: string;
 }
 
 // Simple diff parser to extract files from unified diff
@@ -808,6 +809,7 @@ const ReviewApp: React.FC = () => {
         error?: string;
         isWSL?: boolean;
         serverConfig?: { displayName?: string; gitUser?: string };
+        agentSummary?: string;
       }) => {
         // Initialize config store with server-provided values (config file > cookie > default)
         configStore.init(data.serverConfig);
@@ -822,6 +824,7 @@ const ReviewApp: React.FC = () => {
           diffType: data.diffType,
           gitContext: data.gitContext,
           sharingEnabled: data.sharingEnabled,
+          agentSummary: data.agentSummary,
         });
         setFiles(apiFiles);
         if (data.origin) setOrigin(data.origin);
@@ -1273,9 +1276,11 @@ const ReviewApp: React.FC = () => {
     [selectedBase, activeDiffBase, diffType, fetchDiffSwitch],
   );
 
-  // Switch diff type (uncommitted, last-commit, branch) — composes worktree prefix if active
+  // Switch diff type (uncommitted, last-commit, branch) — composes worktree prefix if active.
+  // Agent diffs (last-turn/session) are transcript-derived, not VCS-scoped, so they're
+  // never worktree-prefixed.
   const handleDiffSwitch = useCallback(async (baseDiffType: string) => {
-    const fullDiffType = activeWorktreePath
+    const fullDiffType = (activeWorktreePath && !baseDiffType.startsWith('agent-'))
       ? `worktree:${activeWorktreePath}:${baseDiffType}`
       : baseDiffType;
     if (fullDiffType === diffType) return;
@@ -2200,7 +2205,7 @@ const ReviewApp: React.FC = () => {
           )}
 
           {/* Center dock area */}
-          <div className="flex-1 min-w-0 overflow-hidden relative">
+          <div className="flex-1 min-w-0 overflow-hidden relative flex flex-col">
             <ConfirmDialog
               isOpen={!!draftBanner}
               onClose={dismissDraft}
@@ -2216,15 +2221,28 @@ const ReviewApp: React.FC = () => {
               cancelText="Dismiss"
               showCancel
             />
-            {files.length > 0 ? (
-              <DockviewReact
-                className={`h-full ${resolvedMode === 'light' ? 'dockview-theme-light' : 'dockview-theme-dark'}`}
-                components={reviewPanelComponents}
-                defaultTabComponent={ReviewDockTabRenderer}
-                onReady={handleDockReady}
-                disableFloatingGroups
-              />
-            ) : (
+            {diffData?.agentSummary && (
+              <div className="border-b border-border bg-muted/20 px-4 py-3">
+                <details open className="group">
+                  <summary className="cursor-pointer select-none text-sm font-semibold text-foreground">
+                    Agent summary
+                  </summary>
+                  <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                    {diffData.agentSummary}
+                  </div>
+                </details>
+              </div>
+            )}
+            <div className="flex-1 min-h-0">
+              {files.length > 0 ? (
+                <DockviewReact
+                  className={`h-full ${resolvedMode === 'light' ? 'dockview-theme-light' : 'dockview-theme-dark'}`}
+                  components={reviewPanelComponents}
+                  defaultTabComponent={ReviewDockTabRenderer}
+                  onReady={handleDockReady}
+                  disableFloatingGroups
+                />
+              ) : (
               <div className="h-full flex items-center justify-center">
                 <div className="text-center space-y-3 max-w-md px-8">
                   <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center ${diffError ? 'bg-destructive/10' : 'bg-muted/50'}`}>
@@ -2271,7 +2289,8 @@ const ReviewApp: React.FC = () => {
                   )}
                 </div>
               </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Resize Handle + Sidebar */}

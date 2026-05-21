@@ -22,9 +22,22 @@ export type DiffType =
   | "branch"
   | "merge-base"
   | "all"
+  | "agent-last-turn"
+  | "agent-session"
   | `worktree:${string}`
   | "p4-default"
   | `p4-changelist:${string}`;
+
+/**
+ * Diff sources backed by the coding agent's session transcript rather than the
+ * VCS working tree: the files an agent edited in its most recent turn, or across
+ * the whole session. Computed by an injected {@link AgentDiffProvider}.
+ */
+export type AgentDiffType = "agent-last-turn" | "agent-session";
+
+export function isAgentDiffType(diffType: string): diffType is AgentDiffType {
+  return diffType === "agent-last-turn" || diffType === "agent-session";
+}
 
 export interface DiffOption {
   id: string;
@@ -122,6 +135,38 @@ export interface ReviewGitRuntime {
 
 export interface GitDiffOptions {
   hideWhitespace?: boolean;
+}
+
+/**
+ * Result of building a diff from an agent's session transcript.
+ */
+export interface AgentDiffResult {
+  /** Unified diff (git-style `diff --git` sections) for the window. */
+  patch: string;
+  /** Human-readable label for the diff ref (e.g. "Last turn", "Session"). */
+  label: string;
+  error?: string;
+  /**
+   * Repo-relative path → file content before the agent's first edit in the
+   * window (empty string when the file was created in-window). Lets the review
+   * server serve "old" content for hunk-expansion without touching the VCS.
+   */
+  fileBefores: Record<string, string | null>;
+}
+
+/**
+ * Supplies transcript-derived diffs to the review server. Implemented per agent
+ * runtime (Claude Code reads `~/.claude/projects/.../*.jsonl`); injected into
+ * `startReviewServer` so the shared server stays agent-agnostic.
+ */
+export interface AgentDiffProvider {
+  /**
+   * Diff-picker options to surface, e.g. "Last turn changes" / "Session
+   * changes". Empty when no session log resolves or the agent made no edits.
+   */
+  listOptions(): DiffOption[];
+  /** Build a unified diff for the given agent diff window. */
+  buildDiff(diffType: AgentDiffType, options?: GitDiffOptions): Promise<AgentDiffResult>;
 }
 
 export function parseRemoteBookmark(target: string): { name: string; remote: string } | null {

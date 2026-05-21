@@ -75,6 +75,10 @@ import {
 import { type DiffType, prepareLocalReviewDiff, gitRuntime } from "@plannotator/server/vcs";
 import { loadConfig, resolveDefaultDiffType, resolveUseJina } from "@plannotator/shared/config";
 import { parseReviewArgs } from "@plannotator/shared/review-args";
+import { loadReviewSummaryFile } from "@plannotator/shared/review-summary";
+import { isAgentDiffType, type AgentDiffProvider } from "@plannotator/shared/review-core";
+import { createClaudeAgentDiffProvider } from "./agent-changes";
+import { createPiAgentDiffProviderFromSessionFile } from "./pi-agent-changes";
 import {
   normalizeGoalSetupBundle,
   type GoalSetupStage,
@@ -263,6 +267,7 @@ const pasteApiUrl = process.env.PLANNOTATOR_PASTE_URL || undefined;
 //   PLANNOTATOR_ORIGIN (explicit override, validated against AGENT_CONFIG)
 //   > Amp plugin wrappers (PLANNOTATOR_ORIGIN=amp)
 //   > Droid command wrappers (PLANNOTATOR_ORIGIN=droid)
+//   > Pi shell bridge (PLANNOTATOR_PI_SESSION_FILE)
 //   > Codex (CODEX_THREAD_ID)
 //   > Copilot CLI (COPILOT_CLI)
 //   > OpenCode (OPENCODE)
@@ -274,6 +279,7 @@ const pasteApiUrl = process.env.PLANNOTATOR_PASTE_URL || undefined;
 const originOverride = process.env.PLANNOTATOR_ORIGIN as Origin | undefined;
 const detectedOrigin: Origin =
   (originOverride && originOverride in AGENT_CONFIG) ? originOverride :
+  process.env.PLANNOTATOR_PI_SESSION_FILE ? "pi" :
   process.env.CODEX_THREAD_ID ? "codex" :
   process.env.COPILOT_CLI ? "copilot-cli" :
   process.env.OPENCODE ? "opencode" :
@@ -393,6 +399,7 @@ if (args[0] === "sessions") {
   // ============================================
 
   const reviewArgs = parseReviewArgs(args.slice(1));
+  const agentSummary = loadReviewSummaryFile(reviewArgs.summaryFile);
   const urlArg = reviewArgs.prUrl;
   const isPRMode = urlArg !== undefined;
   const useLocal = isPRMode && reviewArgs.useLocal;
@@ -406,6 +413,8 @@ if (args[0] === "sessions") {
   let agentCwd: string | undefined;
   let worktreePool: WorktreePool | undefined;
   let worktreeCleanup: (() => void | Promise<void>) | undefined;
+  let agentDiffProvider: AgentDiffProvider | undefined;
+  let agentInitialBefores: Record<string, string | null> | undefined;
 
   if (isPRMode) {
     // --- PR Review Mode ---
@@ -606,6 +615,40 @@ if (args[0] === "sessions") {
     rawPatch = diffResult.rawPatch;
     gitRef = diffResult.gitRef;
     diffError = diffResult.error;
+
+    // Transcript-derived review modes. Surface "Last turn changes" / "Session
+    // changes" in the picker, and — unless the user forced a VCS mode (--git) —
+    // default a fresh review to session changes when the agent has edits.
+    //
+    // Pi shell tools can bridge their active session to this standalone CLI with
+    // a single env var: PLANNOTATOR_PI_SESSION_FILE. The session id, parent
+    // marker, and recorded edit entries are recovered from that JSONL file.
+    if (gitContext) {
+      const repoRoot = gitContext.cwd ?? process.cwd();
+      agentDiffProvider = process.env.PLANNOTATOR_PI_SESSION_FILE
+        ? (createPiAgentDiffProviderFromSessionFile(process.env.PLANNOTATOR_PI_SESSION_FILE, repoRoot) ?? undefined)
+        : detectedOrigin === "claude-code"
+          ? (createClaudeAgentDiffProvider(repoRoot) ?? undefined)
+          : undefined;
+      const available = new Set((agentDiffProvider?.listOptions() ?? []).map((o) => o.id));
+      const requested = reviewArgs.agentDiffType;
+      const chosen: DiffType | undefined =
+        requested && available.has(requested)
+          ? requested
+          : !requested && !reviewArgs.vcsType && available.has("agent-session")
+            ? "agent-session"
+            : undefined;
+      if (chosen && agentDiffProvider && isAgentDiffType(chosen)) {
+        const built = await agentDiffProvider.buildDiff(chosen, {
+          hideWhitespace: config.diffOptions?.hideWhitespace ?? false,
+        });
+        initialDiffType = chosen;
+        rawPatch = built.patch;
+        gitRef = built.label;
+        diffError = built.error;
+        agentInitialBefores = built.fileBefores;
+      }
+    }
   }
 
   const reviewProject = (await detectProjectName()) ?? "_unknown";
@@ -621,6 +664,9 @@ if (args[0] === "sessions") {
     prMetadata,
     agentCwd,
     worktreePool,
+    agentDiffProvider,
+    agentInitialBefores,
+    agentSummary,
     sharingEnabled,
     shareBaseUrl,
     htmlContent: reviewHtmlContent,

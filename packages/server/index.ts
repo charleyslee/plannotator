@@ -53,6 +53,8 @@ import { createExternalAnnotationHandler } from "./external-annotations";
 import { isWSL } from "./browser";
 import { AI_QUERY_ENDPOINT, createAIRuntime } from "./ai-runtime";
 import type { AIEndpoints } from "@plannotator/ai";
+import { homedir } from "os";
+import { resolve as resolvePath } from "path";
 
 // Re-export utilities
 export { isRemoteSession, getServerPort } from "./remote";
@@ -133,10 +135,13 @@ export async function startPlannotatorServer(
   const configuredPort = getServerPort();
   const wslFlag = await isWSL();
   const gitUser = detectGitUser();
+  const projectRoot = resolvePath(process.cwd()) === resolvePath(homedir())
+    ? undefined
+    : process.cwd();
 
   // Side-channel pre-warm: kick off the code-file walk now so the
   // renderer's POST /api/doc/exists lands on warm cache.
-  void warmFileListCache(process.cwd(), "code");
+  if (projectRoot) void warmFileListCache(projectRoot, "code");
 
   // --- Archive mode setup ---
   let archivePlans: ArchivedPlan[] = [];
@@ -287,7 +292,7 @@ export async function startPlannotatorServer(
                 serverConfig: getServerConfig(gitUser),
               });
             }
-            return Response.json({ plan, origin, permissionMode, sharingEnabled, shareBaseUrl, pasteApiUrl, repoInfo, previousPlan, versionInfo, projectRoot: process.cwd(), isWSL: wslFlag, serverConfig: getServerConfig(gitUser) });
+            return Response.json({ plan, origin, permissionMode, sharingEnabled, shareBaseUrl, pasteApiUrl, repoInfo, previousPlan, versionInfo, projectRoot, isWSL: wslFlag, serverConfig: getServerConfig(gitUser) });
           }
 
           // API: Serve a linked markdown document

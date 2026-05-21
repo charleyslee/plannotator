@@ -21,6 +21,7 @@ import { contentHash, deleteDraft } from "./draft";
 import { createExternalAnnotationHandler } from "./external-annotations";
 import { saveConfig, detectGitUser, getServerConfig } from "./config";
 import { dirname, resolve as resolvePath } from "path";
+import { homedir } from "os";
 import { isWSL } from "./browser";
 import { AI_QUERY_ENDPOINT, createAIRuntime } from "./ai-runtime";
 import type { AIEndpoints } from "@plannotator/ai";
@@ -100,9 +101,6 @@ const RETRY_DELAY_MS = 500;
 export async function startAnnotateServer(
   options: AnnotateServerOptions
 ): Promise<AnnotateServerResult> {
-  // Side-channel pre-warm so /api/doc/exists POSTs land on warm cache.
-  void warmFileListCache(process.cwd(), "code");
-
   const {
     markdown,
     filePath,
@@ -120,6 +118,18 @@ export async function startAnnotateServer(
     renderHtml = false,
     onReady,
   } = options;
+
+  const implicitProjectRoot = resolvePath(process.cwd()) === resolvePath(homedir())
+    ? undefined
+    : process.cwd();
+  const projectRoot = mode === "annotate-last"
+    ? undefined
+    : folderPath || implicitProjectRoot;
+
+  // Side-channel pre-warm so /api/doc/exists POSTs land on warm cache. Last-message
+  // annotation has no source tree, and prewarming from a home-directory Pi session can
+  // recursively scan huge folders such as OrbStack/Library before the command returns.
+  if (projectRoot) void warmFileListCache(projectRoot, "code");
 
   const isRemote = isRemoteSession();
   const configuredPort = getServerPort();
@@ -180,7 +190,7 @@ export async function startAnnotateServer(
               shareBaseUrl,
               pasteApiUrl,
               repoInfo,
-              projectRoot: folderPath || process.cwd(),
+              projectRoot,
               isWSL: wslFlag,
               serverConfig: getServerConfig(gitUser),
             });

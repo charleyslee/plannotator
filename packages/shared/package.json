@@ -10,6 +10,7 @@
     "./jj-core": "./jj-core.ts",
     "./review-core": "./review-core.ts",
     "./review-args": "./review-args.ts",
+    "./review-summary": "./review-summary.ts",
     "./vcs-core": "./vcs-core.ts",
     "./checklist": "./checklist.ts",
     "./types": "./types.ts",

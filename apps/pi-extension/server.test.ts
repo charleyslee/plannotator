@@ -9,6 +9,7 @@ import {
   getVcsContext,
   prepareLocalReviewDiff,
   runGitDiff,
+  startAnnotateServer,
   startReviewServer,
 } from "./server";
 
@@ -500,6 +501,26 @@ describe("pi review server", () => {
       server.stop();
     }
   }, 15_000);
+
+  test("annotate-last does not expose cwd as file-browser project root", async () => {
+    const server = await startAnnotateServer({
+      markdown: "last response",
+      filePath: "last-message",
+      htmlContent: "<!doctype html><html><body>annotate</body></html>",
+      mode: "annotate-last",
+      sharingEnabled: false,
+    });
+
+    try {
+      const response = await fetch(`${server.url}/api/plan`);
+      expect(response.status).toBe(200);
+      const payload = await response.json() as { projectRoot?: string; mode?: string };
+      expect(payload.mode).toBe("annotate-last");
+      expect(payload.projectRoot).toBeUndefined();
+    } finally {
+      server.stop();
+    }
+  });
 
   testIfJj("supports JJ local review modes through the Pi server", async () => {
     const homeDir = makeTempDir("plannotator-pi-home-");

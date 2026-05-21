@@ -16,6 +16,8 @@ interface DiffTypePickerProps {
  * Keep these short — they're hover hints, not docs.
  */
 const OPTION_HINTS: Record<string, string> = {
+  'agent-last-turn': "Files the agent edited since your last message. Reconstructed from the session transcript, compared to the current files on disk.",
+  'agent-session': "Every file the agent has edited this session, compared to how each looked before its first edit. Reconstructed from the session transcript.",
   uncommitted: "All your local changes — anything you haven't committed yet.",
   staged: "Only what you've run `git add` on.",
   unstaged: "What `git diff` shows with no arguments.",

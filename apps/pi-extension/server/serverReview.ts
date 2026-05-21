@@ -22,13 +22,16 @@ import {
 	prRefFromMetadata,
 } from "../generated/pr-types.js";
 import {
+	type AgentDiffProvider,
 	type DiffType,
 	type GitContext,
 	getFileContentsForDiff as getFileContentsForDiffCore,
+	isAgentDiffType,
 	parseWorktreeDiffType,
 	resolveBaseBranch,
 	validateFilePath,
 } from "../generated/review-core.js";
+import { isAbsolute as pathIsAbsolute, join as pathJoin } from "node:path";
 import {
 	checkoutPRHead,
 	getPRDiffScopeOptions,
@@ -189,6 +192,17 @@ export async function startReviewServer(options: {
 	onCleanup?: () => void | Promise<void>;
 	/** Called when server starts with the URL, remote status, and port */
 	onReady?: (url: string, isRemote: boolean, port: number) => void;
+	/**
+	 * Supplies transcript-derived diffs ("Last turn changes" / "Session
+	 * changes"). When present, its options are added to the diff picker and the
+	 * server serves these diff types instead of running the VCS. Mirrors the Bun
+	 * server; a Pi-side provider is wired separately.
+	 */
+	agentDiffProvider?: AgentDiffProvider;
+	/** Repo-relative path → pre-edit content seeding the initial agent diff's expansion. */
+	agentInitialBefores?: Record<string, string | null>;
+	/** Optional markdown summary written by the agent before launching review. */
+	agentSummary?: string;
 }): Promise<ReviewServerResult> {
 	const gitUser = detectGitUser();
 	let draftKey = contentHash(options.rawPatch);
@@ -266,6 +280,18 @@ export async function startReviewServer(options: {
 		options.gitContext?.defaultBranch || options.gitContext?.compareTarget?.fallback || "main";
 	let currentBase = options.initialBase || detectedCompareTarget();
 	let baseEverSwitched = false;
+
+	// Transcript-derived diffs ("Last turn changes" / "Session changes"). The
+	// before-map seeds hunk-expansion; replaced whenever the user switches to an
+	// agent diff. Options are merged into the picker's diffOptions.
+	let currentAgentBefores: Record<string, string | null> = options.agentInitialBefores ?? {};
+	const agentDiffOptions = options.agentDiffProvider?.listOptions() ?? [];
+	const withAgentOptions = (ctx?: GitContext): GitContext | undefined => {
+		if (!ctx || agentDiffOptions.length === 0) return ctx;
+		const existing = new Set(ctx.diffOptions.map((o) => o.id));
+		const merged = [...agentDiffOptions.filter((o) => !existing.has(o.id)), ...ctx.diffOptions];
+		return { ...ctx, diffOptions: merged };
+	};
 
 	// Fire-and-forget: query the remote for its actual default branch.
 	if (options.gitContext && !options.initialBase && !isPRMode) {
@@ -481,13 +507,14 @@ export async function startReviewServer(options: {
 				// picker to what the server is actually using, not the detected default.
 				base: hasLocalAccess ? currentBase : undefined,
 				hideWhitespace: currentHideWhitespace,
-				gitContext: hasLocalAccess ? options.gitContext : undefined,
+				gitContext: hasLocalAccess ? withAgentOptions(options.gitContext) : undefined,
 				sharingEnabled,
 				shareBaseUrl,
 				pasteApiUrl,
 				repoInfo,
 				isWSL: wslFlag,
 				...(options.agentCwd && { agentCwd: options.agentCwd }),
+				...(options.agentSummary && { agentSummary: options.agentSummary }),
 				...(isPRMode && {
 					prMetadata: prMeta,
 					platformUser,
@@ -515,6 +542,32 @@ export async function startReviewServer(options: {
 				if (typeof body.hideWhitespace === "boolean") {
 					currentHideWhitespace = body.hideWhitespace;
 				}
+
+				// Agent diffs are built from the session transcript, not the VCS.
+				if (isAgentDiffType(newType)) {
+					if (!options.agentDiffProvider) {
+						json(res, { error: "Agent changes not available" }, 400);
+						return;
+					}
+					const built = await options.agentDiffProvider.buildDiff(newType, {
+						hideWhitespace: currentHideWhitespace,
+					});
+					currentPatch = built.patch;
+					currentGitRef = built.label;
+					currentDiffType = newType;
+					currentError = built.error;
+					currentAgentBefores = built.fileBefores;
+					json(res, {
+						rawPatch: currentPatch,
+						gitRef: currentGitRef,
+						diffType: currentDiffType,
+						base: currentBase,
+						hideWhitespace: currentHideWhitespace,
+						...(currentError ? { error: currentError } : {}),
+					});
+					return;
+				}
+
 				const detectedBase = detectedCompareTarget();
 				const base = resolveBaseBranch(
 					typeof body.base === "string" ? body.base : undefined,
@@ -554,7 +607,7 @@ export async function startReviewServer(options: {
 					// didn't supply one and we fell back to detected default).
 					base: currentBase,
 					hideWhitespace: currentHideWhitespace,
-					...(updatedContext ? { gitContext: updatedContext } : {}),
+					...(updatedContext ? { gitContext: withAgentOptions(updatedContext) } : {}),
 					...(currentError ? { error: currentError } : {}),
 				});
 			} catch (err) {
@@ -846,6 +899,23 @@ export async function startReviewServer(options: {
 					fileContentCwd,
 				);
 				json(res, result);
+				return;
+			}
+
+			// Agent diff: "old" content is the transcript-captured pre-edit
+			// snapshot; "new" content is read live from disk. Independent of VCS.
+			if (isAgentDiffType(currentDiffType)) {
+				const before = currentAgentBefores[filePath] ?? null;
+				let after: string | null = null;
+				try {
+					const abs = pathIsAbsolute(filePath)
+						? filePath
+						: pathJoin(options.gitContext?.cwd ?? process.cwd(), filePath);
+					after = readFileSync(abs, "utf-8");
+				} catch {
+					after = null;
+				}
+				json(res, { oldContent: before, newContent: after });
 				return;
 			}
 

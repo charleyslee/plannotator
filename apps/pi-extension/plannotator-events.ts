@@ -91,6 +91,7 @@ export interface PlannotatorCodeReviewPayload {
 	useLocal?: boolean;
 	cwd?: string;
 	prUrl?: string;
+	agentSummary?: string;
 }
 
 export interface PlannotatorCodeReviewResult {
@@ -201,13 +202,24 @@ function createActiveSessionContext() {
 
 export function registerPlannotatorEventListeners(pi: ExtensionAPI): void {
 	const activeSessionContext = createActiveSessionContext();
+	let unsubscribeRequests: (() => void) | undefined;
+	let cleanedUp = false;
+
+	const cleanup = () => {
+		if (cleanedUp) return;
+		cleanedUp = true;
+		activeSessionContext.clear();
+		unsubscribeRequests?.();
+		unsubscribeRequests = undefined;
+	};
 
 	// Plannotator event requests are handled against the latest active session.
 	// The active context is intentionally session-scoped and replaced on each session_start.
 	pi.on("session_start", async (_event, ctx) => {
 		activeSessionContext.set(ctx);
 	});
-	pi.events.on(PLANNOTATOR_REQUEST_CHANNEL, async (data) => {
+	pi.on("session_shutdown", cleanup);
+	unsubscribeRequests = pi.events.on(PLANNOTATOR_REQUEST_CHANNEL, async (data) => {
 		const request = data as Partial<PlannotatorRequest> | null;
 		const ctx = activeSessionContext.get();
 
@@ -269,6 +281,7 @@ export function registerPlannotatorEventListeners(pi: ExtensionAPI): void {
 						vcsType: request.payload?.vcsType,
 						useLocal: request.payload?.useLocal,
 						prUrl: request.payload?.prUrl,
+						agentSummary: request.payload?.agentSummary,
 					});
 					request.respond({ status: "handled", result });
 					return;

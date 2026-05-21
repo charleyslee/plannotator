@@ -12,7 +12,8 @@
 import { isRemoteSession, getServerHostname, getServerPort } from "./remote";
 import type { Origin } from "@plannotator/shared/agents";
 import { type DiffType, type GitContext, runVcsDiff, getVcsFileContentsForDiff, canStageFiles, stageFile, unstageFile, resolveVcsCwd, validateFilePath, getVcsContext, detectRemoteDefaultCompareTarget, gitRuntime } from "./vcs";
-import { parseWorktreeDiffType, resolveBaseBranch } from "@plannotator/shared/review-core";
+import { parseWorktreeDiffType, resolveBaseBranch, isAgentDiffType, type AgentDiffProvider } from "@plannotator/shared/review-core";
+import { isAbsolute, join } from "node:path";
 import {
   getPRDiffScopeOptions,
   getPRStackInfo,
@@ -99,6 +100,20 @@ export interface ReviewServerOptions {
   worktreePool?: import("@plannotator/shared/worktree-pool").WorktreePool;
   /** Cleanup callback invoked when server stops (e.g., remove temp worktree) */
   onCleanup?: () => void | Promise<void>;
+  /**
+   * Supplies transcript-derived diffs ("Last turn changes" / "Session changes").
+   * When present and the agent made edits, its options are added to the diff
+   * picker and the server serves these diff types instead of running the VCS.
+   */
+  agentDiffProvider?: AgentDiffProvider;
+  /**
+   * Repo-relative path → pre-edit content for the initial agent diff. Seeds
+   * hunk-expansion ("old" content) when the server launches on an agent diff
+   * type; refreshed whenever the user switches to an agent diff in the UI.
+   */
+  agentInitialBefores?: Record<string, string | null>;
+  /** Optional markdown summary written by the agent before launching review. */
+  agentSummary?: string;
 }
 
 export interface ReviewServerResult {
@@ -173,6 +188,18 @@ export async function startReviewServer(
 
   const resolveReviewBase = (requestedBase?: string): string => {
     return resolveBaseBranch(requestedBase, detectedCompareTarget());
+  };
+
+  // Transcript-derived diffs ("Last turn changes" / "Session changes"). The
+  // before-map seeds hunk-expansion; it's replaced whenever the user switches
+  // to an agent diff. Options are merged into the picker's diffOptions.
+  let currentAgentBefores: Record<string, string | null> = options.agentInitialBefores ?? {};
+  const agentDiffOptions = options.agentDiffProvider?.listOptions() ?? [];
+  const withAgentOptions = (ctx?: GitContext): GitContext | undefined => {
+    if (!ctx || agentDiffOptions.length === 0) return ctx;
+    const existing = new Set(ctx.diffOptions.map((o) => o.id));
+    const merged = [...agentDiffOptions.filter((o) => !existing.has(o.id)), ...ctx.diffOptions];
+    return { ...ctx, diffOptions: merged };
   };
 
   // Fire-and-forget: query the remote for its actual default branch. If it
@@ -453,12 +480,13 @@ export async function startReviewServer(
               // detected default.
               base: hasLocalAccess ? currentBase : undefined,
               hideWhitespace: currentHideWhitespace,
-              gitContext: hasLocalAccess ? gitContext : undefined,
+              gitContext: hasLocalAccess ? withAgentOptions(gitContext) : undefined,
               sharingEnabled,
               shareBaseUrl,
               repoInfo,
               isWSL: wslFlag,
               ...(options.agentCwd && { agentCwd: options.agentCwd }),
+              ...(options.agentSummary && { agentSummary: options.agentSummary }),
               ...(isPRMode && {
                 prMetadata,
                 platformUser,
@@ -494,6 +522,31 @@ export async function startReviewServer(
 
               if (typeof body.hideWhitespace === "boolean") {
                 currentHideWhitespace = body.hideWhitespace;
+              }
+
+              // Agent diffs ("Last turn" / "Session") are built from the session
+              // transcript, not the VCS. Refresh on every switch so they reflect
+              // the agent's latest edits.
+              if (isAgentDiffType(newDiffType)) {
+                if (!options.agentDiffProvider) {
+                  return Response.json({ error: "Agent changes not available" }, { status: 400 });
+                }
+                const built = await options.agentDiffProvider.buildDiff(newDiffType, {
+                  hideWhitespace: currentHideWhitespace,
+                });
+                currentPatch = built.patch;
+                currentGitRef = built.label;
+                currentDiffType = newDiffType;
+                currentError = built.error;
+                currentAgentBefores = built.fileBefores;
+                return Response.json({
+                  rawPatch: currentPatch,
+                  gitRef: currentGitRef,
+                  diffType: currentDiffType,
+                  base: currentBase,
+                  hideWhitespace: currentHideWhitespace,
+                  ...(currentError && { error: currentError }),
+                });
               }
 
               // Guard against non-string payloads — resolveBaseBranch calls
@@ -541,7 +594,7 @@ export async function startReviewServer(
                 // didn't supply one and we fell back to detected default).
                 base: currentBase,
                 hideWhitespace: currentHideWhitespace,
-                ...(updatedContext && { gitContext: updatedContext }),
+                ...(updatedContext && { gitContext: withAgentOptions(updatedContext) }),
                 ...(currentError && { error: currentError }),
               });
             } catch (err) {
@@ -794,6 +847,22 @@ export async function startReviewServer(
                 fileContentCwd,
               );
               return Response.json(result);
+            }
+
+            // Agent diff: "old" content is the transcript-captured pre-edit
+            // snapshot; "new" content is read live from disk. Independent of VCS.
+            if (isAgentDiffType(currentDiffType)) {
+              const before = currentAgentBefores[filePath] ?? null;
+              let after: string | null = null;
+              try {
+                const abs = isAbsolute(filePath)
+                  ? filePath
+                  : join(gitContext?.cwd ?? process.cwd(), filePath);
+                after = await Bun.file(abs).text();
+              } catch {
+                after = null;
+              }
+              return Response.json({ oldContent: before, newContent: after });
             }
 
             // Local review: read file contents from local git

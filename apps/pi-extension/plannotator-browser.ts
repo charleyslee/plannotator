@@ -26,6 +26,8 @@ import {
 import { parseRemoteUrl } from "./generated/repo.js";
 import { fetchRef, createWorktree, removeWorktree, ensureObjectAvailable } from "./generated/worktree.js";
 import { loadConfig, resolveDefaultDiffType } from "./generated/config.js";
+import { isAgentDiffType, type AgentDiffProvider } from "./generated/review-core.js";
+import { createPiAgentDiffProvider } from "./agent-changes.js";
 export { getLastAssistantMessageText } from "./assistant-message.js";
 
 export type AnnotateMode = "annotate" | "annotate-folder" | "annotate-last";
@@ -196,7 +198,7 @@ export function shouldUseLocalPrCheckout(options: { useLocal?: boolean }): boole
 
 export async function openCodeReview(
 	ctx: ExtensionContext,
-	options: { cwd?: string; defaultBranch?: string; diffType?: DiffType; prUrl?: string; vcsType?: VcsSelection; useLocal?: boolean } = {},
+	options: { cwd?: string; defaultBranch?: string; diffType?: DiffType; prUrl?: string; vcsType?: VcsSelection; useLocal?: boolean; agentSummary?: string } = {},
 ): Promise<{ approved: boolean; feedback?: string; annotations?: unknown[]; agentSwitch?: string; exit?: boolean }> {
 	const session = await startCodeReviewBrowserSession(ctx, options);
 	return session.waitForDecision();
@@ -204,7 +206,7 @@ export async function openCodeReview(
 
 export async function startCodeReviewBrowserSession(
 	ctx: ExtensionContext,
-	options: { cwd?: string; defaultBranch?: string; diffType?: DiffType; prUrl?: string; vcsType?: VcsSelection; useLocal?: boolean } = {},
+	options: { cwd?: string; defaultBranch?: string; diffType?: DiffType; prUrl?: string; vcsType?: VcsSelection; useLocal?: boolean; agentSummary?: string } = {},
 ): Promise<
 	BrowserDecisionSession<{
 		approved: boolean;
@@ -229,6 +231,8 @@ export async function startCodeReviewBrowserSession(
 	let diffType: DiffType | undefined;
 	let agentCwd: string | undefined;
 	let initialBase: string | undefined;
+	let agentDiffProvider: AgentDiffProvider | undefined;
+	let agentInitialBefores: Record<string, string | null> | undefined;
 	let worktreeCleanup: (() => void | Promise<void>) | undefined;
 	let worktreePool: WorktreePool | undefined;
 	let exitHandler: (() => void) | undefined;
@@ -399,10 +403,16 @@ export async function startCodeReviewBrowserSession(
 		// --- Local Review Mode ---
 		const cwd = options.cwd ?? ctx.cwd;
 		const config = loadConfig();
+		const requestedAgentDiffType = options.diffType && isAgentDiffType(options.diffType)
+			? options.diffType
+			: undefined;
+		const requestedVcsDiffType = options.diffType && !isAgentDiffType(options.diffType)
+			? options.diffType
+			: undefined;
 		const result = await prepareLocalReviewDiff({
 			cwd,
 			vcsType: options.vcsType,
-			requestedDiffType: options.diffType,
+			requestedDiffType: requestedVcsDiffType,
 			requestedBase: options.defaultBranch,
 			configuredDiffType: resolveDefaultDiffType(config),
 			hideWhitespace: config.diffOptions?.hideWhitespace ?? false,
@@ -416,6 +426,26 @@ export async function startCodeReviewBrowserSession(
 		// be forwarded to the server below. Only matters when the caller
 		// overrode the detected default; otherwise it matches gitCtx already.
 		initialBase = result.base;
+
+		agentDiffProvider = createPiAgentDiffProvider(ctx, gitCtx.cwd ?? cwd) ?? undefined;
+		const available = new Set((agentDiffProvider?.listOptions() ?? []).map((o) => o.id));
+		const chosen: DiffType | undefined =
+			requestedAgentDiffType && available.has(requestedAgentDiffType)
+				? requestedAgentDiffType
+				: !requestedAgentDiffType && !options.diffType && !options.vcsType && available.has("agent-session")
+					? "agent-session"
+					: undefined;
+
+		if (chosen && agentDiffProvider && isAgentDiffType(chosen)) {
+			const built = await agentDiffProvider.buildDiff(chosen, {
+				hideWhitespace: config.diffOptions?.hideWhitespace ?? false,
+			});
+			diffType = chosen;
+			rawPatch = built.patch;
+			gitRef = built.label;
+			diffError = built.error;
+			agentInitialBefores = built.fileBefores;
+		}
 	}
 
 	const server = await startReviewServer({
@@ -429,6 +459,9 @@ export async function startCodeReviewBrowserSession(
 		prMetadata,
 		agentCwd,
 		worktreePool,
+		agentDiffProvider,
+		agentInitialBefores,
+		agentSummary: options.agentSummary,
 		htmlContent: reviewHtmlContent,
 		sharingEnabled: process.env.PLANNOTATOR_SHARE !== "disabled",
 		shareBaseUrl: process.env.PLANNOTATOR_SHARE_URL || undefined,

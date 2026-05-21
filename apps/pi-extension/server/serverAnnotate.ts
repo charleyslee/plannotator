@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { homedir } from "node:os";
 import { dirname, resolve as resolvePath } from "node:path";
 
 import { contentHash, deleteDraft } from "../generated/draft.js";
@@ -51,8 +52,14 @@ export async function startAnnotateServer(options: {
 	rawHtml?: string;
 	renderHtml?: boolean;
 }): Promise<AnnotateServerResult> {
+	const implicitProjectRoot = resolvePath(process.cwd()) === resolvePath(homedir())
+		? undefined
+		: process.cwd();
+	const projectRoot = options.mode === "annotate-last"
+		? undefined
+		: options.folderPath || implicitProjectRoot;
 	// Side-channel pre-warm so /api/doc/exists POSTs land on warm cache.
-	void warmFileListCache(process.cwd(), "code");
+	if (projectRoot) void warmFileListCache(projectRoot, "code");
 	const gitUser = detectGitUser();
 	const sharingEnabled =
 		options.sharingEnabled ?? process.env.PLANNOTATOR_SHARE !== "disabled";
@@ -110,7 +117,7 @@ export async function startAnnotateServer(options: {
 				shareBaseUrl,
 				pasteApiUrl,
 				repoInfo,
-				projectRoot: options.folderPath || process.cwd(),
+				projectRoot,
 				serverConfig: getServerConfig(gitUser),
 			});
 		} else if (url.pathname === "/api/config" && req.method === "POST") {

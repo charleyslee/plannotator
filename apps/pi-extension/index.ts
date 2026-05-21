@@ -52,6 +52,7 @@ import {
 } from "./generated/prompts.js";
 import { parseAnnotateArgs } from "./generated/annotate-args.js";
 import { parseReviewArgs } from "./generated/review-args.js";
+import { loadReviewSummaryFile } from "./generated/review-summary.js";
 import { resolveAtReference } from "./generated/at-reference.js";
 import {
 	hasPlanBrowserHtml,
@@ -85,6 +86,12 @@ import {
 	type Phase,
 	stripPlanningOnlyTools,
 } from "./tool-scope.ts";
+import {
+	PI_AGENT_CHANGE_CUSTOM_TYPE,
+	capturePiAgentChangeToolCall,
+	getPiAgentMutationPaths,
+	type PendingPiAgentChange,
+} from "./agent-changes.js";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -131,6 +138,17 @@ function reportBackgroundError(ctx: ExtensionContext, message: string, err: unkn
 	const detail = getStartupErrorMessage(err);
 	console.error(`${message}: ${detail}`);
 	safeNotify(ctx, `${message}: ${detail}`, "error", origin);
+}
+
+function setPiShellBridgeEnv(ctx: ExtensionContext): void {
+	// One-var bridge for shell-launched `plannotator review` inside Pi. The CLI
+	// reads the active Pi session JSONL and recovers session id/parent/edit records
+	// from that file, so custom shell tools only need to inherit process.env.
+	process.env.PLANNOTATOR_PI_SESSION_FILE = ctx.sessionManager.getSessionFile();
+}
+
+function clearPiShellBridgeEnv(): void {
+	delete process.env.PLANNOTATOR_PI_SESSION_FILE;
 }
 
 function excerptText(text: string, maxChars = 1000): string {
@@ -216,13 +234,17 @@ export default function plannotator(pi: ExtensionAPI): void {
 	let savedState: SavedPhaseState | null = null;
 	let plannotatorConfig = {};
 	let justApprovedPlan = false;
+	const pendingAgentChanges = new Map<string, PendingPiAgentChange>();
 
 	pi.on("session_start", (_event, ctx) => {
 		currentPiSession.update(ctx);
+		setPiShellBridgeEnv(ctx);
 	});
 
 	pi.on("session_shutdown", () => {
 		currentPiSession.clear();
+		clearPiShellBridgeEnv();
+		resetSessionScopedState();
 	});
 
 	// ── Flags ────────────────────────────────────────────────────────────
@@ -288,6 +310,24 @@ export default function plannotator(pi: ExtensionAPI): void {
 
 
 		pi.appendEntry("plannotator", { phase, lastSubmittedPath, savedState });
+	}
+
+	function resetSessionScopedState(): void {
+		phase = "idle";
+		lastSubmittedPath = null;
+		checklistItems = [];
+		savedState = null;
+		justApprovedPlan = false;
+		pendingAgentChanges.clear();
+	}
+
+	function flushPendingAgentChanges(): void {
+		for (const [toolCallId, change] of pendingAgentChanges) {
+			pendingAgentChanges.delete(toolCallId);
+			if (change.succeeded !== true) continue;
+			const { succeeded: _succeeded, ...record } = change;
+			pi.appendEntry(PI_AGENT_CHANGE_CUSTOM_TYPE, record);
+		}
 	}
 
 	async function applyModelRef(
@@ -418,15 +458,19 @@ export default function plannotator(pi: ExtensionAPI): void {
 			}
 
 			currentPiSession.update(ctx);
+			setPiShellBridgeEnv(ctx);
 			const origin = getPiSessionIdentity(ctx);
 
 			try {
 				const reviewArgs = parseReviewArgs(args ?? "");
+				const agentSummary = loadReviewSummaryFile(reviewArgs.summaryFile);
 				const isPRReview = reviewArgs.prUrl !== undefined;
 				const session = await startCodeReviewBrowserSession(ctx, {
 					prUrl: reviewArgs.prUrl,
+					diffType: reviewArgs.agentDiffType,
 					vcsType: reviewArgs.vcsType,
 					useLocal: reviewArgs.useLocal,
+					agentSummary,
 				});
 				ctx.ui.notify("Code review opened. You can keep chatting while it runs.", "info");
 				void session
@@ -587,6 +631,7 @@ export default function plannotator(pi: ExtensionAPI): void {
 			}
 
 			currentPiSession.update(ctx);
+			setPiShellBridgeEnv(ctx);
 			const origin = getPiSessionIdentity(ctx);
 
 			try {
@@ -661,6 +706,7 @@ export default function plannotator(pi: ExtensionAPI): void {
 			}
 
 			currentPiSession.update(ctx);
+			setPiShellBridgeEnv(ctx);
 			const origin = getPiSessionIdentity(ctx);
 
 			const snapshot = getLastAssistantMessageSnapshot(ctx);
@@ -826,7 +872,7 @@ export default function plannotator(pi: ExtensionAPI): void {
 					content: [
 						{
 							type: "text",
-							text: `Error: ${inputPath} does not exist. Write your plan using the write tool first, then call ${PLAN_SUBMIT_TOOL} again.`,
+							text: `Error: ${inputPath} does not exist. Write your plan using write, edit, or apply_patch first, then call ${PLAN_SUBMIT_TOOL} again.`,
 						},
 					],
 					details: { approved: false },
@@ -959,19 +1005,57 @@ export default function plannotator(pi: ExtensionAPI): void {
 
 	// ── Event Handlers ───────────────────────────────────────────────────
 
-	// Gate writes during planning — only markdown files inside cwd.
+	// Record file-mutating tool calls so the review UI can reconstruct
+	// transcript-derived "last turn" / "session" diffs for Pi.
+	// Also gate writes during planning — only markdown files inside cwd.
 	pi.on("tool_call", async (event, ctx) => {
-		if (phase !== "planning") return;
-		if (event.toolName !== "write" && event.toolName !== "edit") return;
+		setPiShellBridgeEnv(ctx);
 
-		const inputPath = event.input.path as string;
-		if (!isPlanWritePathAllowed(inputPath, ctx.cwd)) {
-			const verb = event.toolName === "write" ? "writes" : "edits";
-			return {
-				block: true,
-				reason: `Plannotator: during planning, ${verb} are limited to markdown files (.md, .mdx) inside the working directory. Blocked: ${inputPath}`,
-			};
+		if (phase !== "planning") {
+			const identity = getPiSessionIdentity(ctx);
+			const change = capturePiAgentChangeToolCall({
+				toolCallId: event.toolCallId,
+				toolName: event.toolName,
+				input: event.input,
+				cwd: ctx.cwd,
+				session: {
+					sessionId: identity.sessionId,
+					sessionFile: identity.sessionFile,
+				},
+			});
+			if (change) pendingAgentChanges.set(event.toolCallId, change);
 		}
+
+		if (phase !== "planning") return;
+
+		if (event.toolName === "write" || event.toolName === "edit") {
+			const inputPath = typeof event.input.path === "string" ? event.input.path : "";
+			if (!isPlanWritePathAllowed(inputPath, ctx.cwd)) {
+				const verb = event.toolName === "write" ? "writes" : "edits";
+				return {
+					block: true,
+					reason: `Plannotator: during planning, ${verb} are limited to markdown files (.md, .mdx) inside the working directory. Blocked: ${inputPath}`,
+				};
+			}
+			return;
+		}
+
+		if (event.toolName === "apply_patch") {
+			const paths = getPiAgentMutationPaths(event.toolName, event.input);
+			const blockedPath = paths.find((path) => !isPlanWritePathAllowed(path, ctx.cwd));
+			if (paths.length === 0 || blockedPath) {
+				return {
+					block: true,
+					reason: `Plannotator: during planning, apply_patch is limited to markdown files (.md, .mdx) inside the working directory. Blocked: ${blockedPath ?? "unparseable patch"}`,
+				};
+			}
+		}
+	});
+
+	pi.on("tool_result", async (event) => {
+		const change = pendingAgentChanges.get(event.toolCallId);
+		if (!change) return;
+		change.succeeded = !event.isError;
 	});
 
 	// Inject phase-specific context
@@ -1029,9 +1113,9 @@ export default function plannotator(pi: ExtensionAPI): void {
 				message: {
 					customType: "plannotator-context",
 					content: `[PLANNOTATOR - PLANNING PHASE]
-You are in plan mode. You MUST NOT make any changes to the codebase — no edits, no commits, no installs, no destructive commands. During planning you may only write or edit markdown files (.md, .mdx) inside the working directory.
+You are in plan mode. You MUST NOT make any changes to the codebase — no code edits, no commits, no installs, no destructive commands. During planning you may only write, edit, or patch markdown files (.md, .mdx) inside the working directory.
 
-Available tools: read, bash, grep, find, ls, write (markdown only), edit (markdown only), ${PLAN_SUBMIT_TOOL}
+Available tools: read, bash, grep, find, ls, write/edit/apply_patch (markdown only), ${PLAN_SUBMIT_TOOL}
 
 Do not run destructive bash commands (rm, git push, npm install, etc.) — focus on reading and exploring the codebase. Web fetching (curl, wget) is fine.
 
@@ -1048,7 +1132,7 @@ Choose a descriptive filename for your plan. Convention: \`PLAN.md\` at the repo
 Repeat this cycle until the plan is complete:
 
 1. **Explore** — Use read, grep, find, ls, and bash to understand the codebase. Actively search for existing functions, utilities, and patterns that can be reused — avoid proposing new code when suitable implementations already exist.
-2. **Update the plan file** — After each discovery, immediately capture what you learned in the plan. Don't wait until the end. Use write for the initial draft, then edit for all subsequent updates.
+2. **Update the plan file** — After each discovery, immediately capture what you learned in the plan. Don't wait until the end. Use write for the initial draft, then edit for all subsequent updates. If your active model exposes apply_patch instead of write, use apply_patch but only touch the markdown plan file.
 3. **Ask the user** — When you hit an ambiguity or decision you can't resolve from code alone, ask. Then go back to step 1.
 
 ### First Turn
@@ -1084,7 +1168,7 @@ Your plan is ready when you've addressed all ambiguities and it covers: what to 
 
 When the user denies a plan with feedback:
 1. Read the plan file to see the current plan.
-2. Use the edit tool to make targeted changes addressing the feedback — do NOT rewrite the entire file.
+2. Use edit or apply_patch to make targeted changes addressing the feedback — do NOT rewrite the entire file.
 3. Call ${PLAN_SUBMIT_TOOL} again with the same filePath to resubmit.
 
 ### Ending Your Turn
@@ -1150,6 +1234,8 @@ Execute each step in order. After completing a step, include [DONE:n] in your re
 
 	// Track execution progress
 	pi.on("turn_end", async (event, ctx) => {
+		flushPendingAgentChanges();
+
 		if (phase !== "executing" || checklistItems.length === 0) return;
 
 		const text = getAssistantMessageText(event.message);
@@ -1199,6 +1285,8 @@ Execute each step in order. After completing a step, include [DONE:n] in your re
 
 	// Restore state on session start/resume
 	pi.on("session_start", async (_event, ctx) => {
+		resetSessionScopedState();
+
 		const loadedConfig = loadPlannotatorConfig(ctx.cwd);
 		plannotatorConfig = loadedConfig.config;
 		for (const warning of loadedConfig.warnings) {

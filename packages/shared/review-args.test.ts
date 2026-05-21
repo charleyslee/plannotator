@@ -54,6 +54,35 @@ describe("parseReviewArgs", () => {
       .toBe("https://github.com/acme/repo/pull/12");
   });
 
+  test("parses --summary-file separate value form", () => {
+    expect(parseReviewArgs(["--summary-file", "/tmp/review-summary.md"])).toMatchObject({
+      summaryFile: "/tmp/review-summary.md",
+      prUrl: undefined,
+    });
+  });
+
+  test("parses --summary-file equals form", () => {
+    expect(parseReviewArgs("--summary-file=/tmp/review-summary.md")).toMatchObject({
+      summaryFile: "/tmp/review-summary.md",
+      prUrl: undefined,
+    });
+  });
+
+  test("parses quoted summary paths from strings and argv arrays", () => {
+    expect(parseReviewArgs(`--summary-file "/tmp/review summary.md"`).summaryFile)
+      .toBe("/tmp/review summary.md");
+    expect(parseReviewArgs(["--summary-file", "'/tmp/review summary.md'"]).summaryFile)
+      .toBe("/tmp/review summary.md");
+  });
+
+  test("preserves PR URL parsing with summary file", () => {
+    expect(parseReviewArgs("--summary-file /tmp/review-summary.md https://github.com/acme/repo/pull/12")).toMatchObject({
+      prUrl: "https://github.com/acme/repo/pull/12",
+      summaryFile: "/tmp/review-summary.md",
+      useLocal: true,
+    });
+  });
+
   test("keeps non-url positional input as local review mode", () => {
     expect(parseReviewArgs("--git not-a-url")).toEqual({
       prUrl: undefined,

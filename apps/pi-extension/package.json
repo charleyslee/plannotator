@@ -21,6 +21,7 @@
   },
   "files": [
     "index.ts",
+    "agent-changes.ts",
     "assistant-message.ts",
     "current-pi-session.ts",
     "plannotator-browser.ts",
@@ -42,6 +43,7 @@
   },
   "dependencies": {
     "@pierre/diffs": "^1.1.12",
+    "diff": "^8.0.4",
     "turndown": "^7.2.4",
     "@joplin/turndown-plugin-gfm": "^1.0.64"
   },

@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
+import { homedir } from "node:os";
+import { resolve as resolvePath } from "node:path";
 
 import { contentHash, deleteDraft } from "../generated/draft.js";
 import {
@@ -81,8 +83,11 @@ export async function startPlanReviewServer(options: {
 	mode?: "archive";
 	customPlanPath?: string | null;
 }): Promise<PlanServerResult> {
+	const projectRoot = resolvePath(process.cwd()) === resolvePath(homedir())
+		? undefined
+		: process.cwd();
 	// Side-channel pre-warm so /api/doc/exists POSTs land on warm cache.
-	void warmFileListCache(process.cwd(), "code");
+	if (projectRoot) void warmFileListCache(projectRoot, "code");
 	const gitUser = detectGitUser();
 	const sharingEnabled =
 		options.sharingEnabled ?? process.env.PLANNOTATOR_SHARE !== "disabled";
@@ -227,7 +232,7 @@ export async function startPlanReviewServer(options: {
 					shareBaseUrl,
 					pasteApiUrl,
 					repoInfo,
-					projectRoot: process.cwd(),
+					projectRoot,
 					serverConfig: getServerConfig(gitUser),
 				});
 			}

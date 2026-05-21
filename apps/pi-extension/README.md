@@ -156,7 +156,7 @@ Supported actions and payloads:
 
 - `plan-review`: `{ planContent, planFilePath? }`
 - `review-status`: `{ reviewId }`
-- `code-review`: `{ cwd?, defaultBranch?, diffType? }`
+- `code-review`: `{ cwd?, defaultBranch?, diffType?, agentSummary? }`
 - `annotate`: `{ filePath, markdown?, mode?, folderPath? }`
 - `annotate-last`: `{ markdown? }`
 - `archive`: `{ customPlanPath? }`
