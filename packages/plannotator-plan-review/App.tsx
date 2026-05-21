@@ -207,6 +207,8 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; onOpen
 
   const [initialExportTab, setInitialExportTab] = useState<'share' | 'annotations' | 'notes'>();
   const [isPlanDiffActive, setIsPlanDiffActive] = useState(false);
+  const togglePlanDiff = useCallback(() => setIsPlanDiffActive(v => !v), []);
+  const closePlanDiff = useCallback(() => setIsPlanDiffActive(false), []);
   const [planDiffMode, setPlanDiffMode] = useState<PlanDiffMode>('clean');
   const [previousPlan, setPreviousPlan] = useState<string | null>(null);
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
@@ -548,6 +550,13 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; onOpen
     }
     return count > 0 ? { count, files } : undefined;
   }, [allAnnotationCounts, linkedDocHook.filepath]);
+
+  const linkedDocInfo = useMemo(() => {
+    if (!linkedDocHook.isActive) return null;
+    const dir = fileBrowser.dirs.find(d => d.path === fileBrowser.activeDirPath);
+    const label = dir?.isVault ? 'Vault File' : fileBrowser.activeFile ? 'File' : undefined;
+    return { filepath: linkedDocHook.filepath!, onBack: handleLinkedDocBack, label, backLabel };
+  }, [linkedDocHook.isActive, linkedDocHook.filepath, handleLinkedDocBack, fileBrowser.dirs, fileBrowser.activeDirPath, fileBrowser.activeFile, backLabel]);
 
   // Flash highlight for annotated files in the sidebar
   const [highlightedFiles, setHighlightedFiles] = useState<Set<string> | undefined>();
@@ -1904,7 +1913,7 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; onOpen
                   planDiffStats={planDiff.diffStats}
                   isPlanDiffActive={isPlanDiffActive}
                   hasPreviousVersion={planDiff.hasPreviousVersion}
-                  onPlanDiffToggle={() => setIsPlanDiffActive(!isPlanDiffActive)}
+                  onPlanDiffToggle={togglePlanDiff}
                   archiveInfo={archive.currentInfo}
                   maxWidth={annotateReaderMaxWidth}
                   remountToken={linkedDocHook.isActive ? `doc:${linkedDocHook.filepath}` : 'plan'}
@@ -1945,7 +1954,7 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; onOpen
                     diffStats={planDiff.diffStats}
                     diffMode={planDiffMode}
                     onDiffModeChange={setPlanDiffMode}
-                    onPlanDiffToggle={() => setIsPlanDiffActive(false)}
+                    onPlanDiffToggle={closePlanDiff}
                     repoInfo={repoInfo}
                     baseVersionLabel={planDiff.diffBaseVersion != null ? `v${planDiff.diffBaseVersion}` : undefined}
                     baseVersion={planDiff.diffBaseVersion ?? undefined}
@@ -2037,13 +2046,13 @@ const App: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; onOpen
                     stickyActions={uiPrefs.stickyActionsEnabled}
                     planDiffStats={linkedDocHook.isActive ? null : planDiff.diffStats}
                     isPlanDiffActive={isPlanDiffActive}
-                    onPlanDiffToggle={() => setIsPlanDiffActive(!isPlanDiffActive)}
+                    onPlanDiffToggle={togglePlanDiff}
                     hasPreviousVersion={!linkedDocHook.isActive && planDiff.hasPreviousVersion}
                     showDemoBadge={!isApiMode && !isLoadingShared && !isSharedSession}
                     maxWidth={annotateReaderMaxWidth}
                     onOpenLinkedDoc={handleOpenLinkedDoc}
                     onOpenCodeFile={codeFilePopout.open}
-                    linkedDocInfo={linkedDocHook.isActive ? { filepath: linkedDocHook.filepath!, onBack: handleLinkedDocBack, label: fileBrowser.dirs.find(d => d.path === fileBrowser.activeDirPath)?.isVault ? 'Vault File' : fileBrowser.activeFile ? 'File' : undefined, backLabel } : null}
+                    linkedDocInfo={linkedDocInfo}
                     imageBaseDir={imageBaseDir}
                     codePathBaseDir={activeDocBaseDir}
                     copyLabel={annotateSource === 'message' ? 'Copy message' : annotateSource === 'file' || annotateSource === 'folder' ? 'Copy file' : undefined}
