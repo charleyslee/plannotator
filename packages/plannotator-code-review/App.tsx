@@ -164,10 +164,10 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
   const localAnnotations = useReviewStore(s => s.localAnnotations);
   const selectedAnnotationId = useReviewStore(s => s.selectedAnnotationId);
   const pendingSelection = useReviewStore(s => s.pendingSelection);
+  const files = useReviewStore(s => s.files);
+  const activeFileIndex = useReviewStore(s => s.focusedFileIndex);
   const [diffData, setDiffData] = useState<DiffData | null>(null);
-  const [files, setFiles] = useState<DiffFile[]>([]);
-  const [activeFileIndex, setActiveFileIndex] = useState(0);
-  const [isAllFilesActive, setIsAllFilesActive] = useState(false);
+  const isAllFilesActive = useReviewStore(s => s.isAllFilesActive);
   const [isDiffPanelActive, setIsDiffPanelActive] = useState(false);
   const [allFilesVisibleFile, setAllFilesVisibleFile] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -317,9 +317,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
   filesRef.current = files;
   const needsInitialDiffPanel = useRef(true);
 
-  // Sync data into the review store for panels that read from it directly
   useEffect(() => { storeApi.getState().setExternalAnnotations(externalAnnotations); }, [storeApi, externalAnnotations]);
-  useEffect(() => { storeApi.getState().setFiles(files); }, [storeApi, files]);
   useEffect(() => {
     storeApi.getState().setDiffOptions({
       diffStyle, diffOverflow, diffIndicators, lineDiffType: diffLineDiffType,
@@ -340,7 +338,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
     if (!dockApi) {
       const fileIndex = files.findIndex(candidate => candidate.path === filePath);
       if (fileIndex !== -1) {
-        setActiveFileIndex(fileIndex);
+        storeApi.getState().setFocusedFile(fileIndex);
       }
       return;
     }
@@ -354,7 +352,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
         }
         const fileIndex = files.findIndex(candidate => candidate.path === filePath);
         if (fileIndex !== -1) {
-          setActiveFileIndex(fileIndex);
+          storeApi.getState().setFocusedFile(fileIndex);
         }
         needsInitialDiffPanel.current = false;
         return;
@@ -374,7 +372,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
       });
     }
 
-    setActiveFileIndex(files.findIndex(candidate => candidate.path === filePath));
+    storeApi.getState().setFocusedFile(files.findIndex(candidate => candidate.path === filePath));
     needsInitialDiffPanel.current = false;
   }, [dockApi, files]);
 
@@ -432,9 +430,6 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
 
     return [...local, ...externalAnnotations];
   }, [localAnnotations, externalAnnotations]);
-  const allAnnotationsRef = useRef(allAnnotations);
-  allAnnotationsRef.current = allAnnotations;
-
   // Auto-save and auto-restore code annotation drafts
   useCodeAnnotationDraft({
     annotations: allAnnotations,
@@ -532,21 +527,22 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
   }, [aiChat]);
 
   const handleAskAI = useCallback((question: string) => {
-    if (!pendingSelection || !files[activeFileIndex]) return;
-    const lineStart = Math.min(pendingSelection.start, pendingSelection.end);
-    const lineEnd = Math.max(pendingSelection.start, pendingSelection.end);
-    const side = pendingSelection.side === 'additions' ? 'new' : 'old';
-    const selectedCode = extractLinesFromPatch(files[activeFileIndex].patch, lineStart, lineEnd, side);
+    const { pendingSelection: sel, files: f, focusedFileIndex } = storeApi.getState();
+    if (!sel || !f[focusedFileIndex]) return;
+    const lineStart = Math.min(sel.start, sel.end);
+    const lineEnd = Math.max(sel.start, sel.end);
+    const side = sel.side === 'additions' ? 'new' : 'old';
+    const selectedCode = extractLinesFromPatch(f[focusedFileIndex].patch, lineStart, lineEnd, side);
 
     aiChat.ask({
       prompt: question,
-      filePath: files[activeFileIndex].path,
+      filePath: f[focusedFileIndex].path,
       lineStart,
       lineEnd,
       side,
       selectedCode: selectedCode || undefined,
     });
-  }, [pendingSelection, files, activeFileIndex, aiChat]);
+  }, [storeApi, aiChat]);
 
   const handleViewAIResponse = useCallback((questionId?: string) => {
     reviewSidebar.open('ai');
@@ -611,15 +607,15 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
 
     // Sync activeFileIndex when user switches between dock tabs
     event.api.onDidActivePanelChange((panel) => {
-      if (!panel) { setIsAllFilesActive(false); setIsDiffPanelActive(false); return; }
-      setIsAllFilesActive(panel.id === REVIEW_ALL_FILES_PANEL_ID);
+      if (!panel) { storeApi.getState().setIsAllFilesActive(false); setIsDiffPanelActive(false); return; }
+      storeApi.getState().setIsAllFilesActive(panel.id === REVIEW_ALL_FILES_PANEL_ID);
       setIsDiffPanelActive(isReviewDiffPanelId(panel.id));
       if (!isReviewDiffPanelId(panel.id)) return;
       const filePath = getReviewDiffPanelFilePath(panel.params);
       if (!filePath) return;
       const fileIndex = filesRef.current.findIndex(file => file.path === filePath);
       if (fileIndex !== -1) {
-        setActiveFileIndex(fileIndex);
+        storeApi.getState().setFocusedFile(fileIndex);
       }
     });
 
@@ -834,7 +830,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
           gitContext: data.gitContext,
           sharingEnabled: data.sharingEnabled,
         });
-        setFiles(apiFiles);
+        storeApi.getState().setFiles(apiFiles);
         if (data.origin) setOrigin(data.origin);
         if (data.diffType) setDiffType(data.diffType);
         if (data.gitContext) {
@@ -876,7 +872,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
           rawPatch: DEMO_DIFF,
           gitRef: 'demo',
         });
-        setFiles(demoFiles);
+        storeApi.getState().setFiles(demoFiles);
       })
       .finally(() => setIsLoading(false));
   }, []);
@@ -908,9 +904,10 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
     decorations?: ConventionalDecoration[],
     tokenMeta?: TokenAnnotationMeta
   ) => {
-    if (!pendingSelection) return;
-    const lineStart = Math.min(pendingSelection.start, pendingSelection.end);
-    const lineEnd = Math.max(pendingSelection.start, pendingSelection.end);
+    const sel = storeApi.getState().pendingSelection;
+    if (!sel) return;
+    const lineStart = Math.min(sel.start, sel.end);
+    const lineEnd = Math.max(sel.start, sel.end);
     const newAnnotation: CodeAnnotation = {
       id: generateId(),
       type,
@@ -918,7 +915,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
       filePath,
       lineStart,
       lineEnd,
-      side: pendingSelection.side === 'additions' ? 'new' : 'old',
+      side: sel.side === 'additions' ? 'new' : 'old',
       text,
       suggestedCode,
       originalCode,
@@ -933,7 +930,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
       decorations,
     };
     storeApi.getState().addAnnotation(withPRContext(newAnnotation));
-  }, [storeApi, pendingSelection, identity, withPRContext]);
+  }, [storeApi, identity, withPRContext]);
 
   const handleAddAnnotation = useCallback((
     type: CodeAnnotationType,
@@ -944,12 +941,14 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
     decorations?: ConventionalDecoration[],
     tokenMeta?: TokenAnnotationMeta
   ) => {
-    if (!files[activeFileIndex]) return;
-    handleAddAnnotationForFile(files[activeFileIndex].path, type, text, suggestedCode, originalCode, conventionalLabel, decorations, tokenMeta);
-  }, [files, activeFileIndex, handleAddAnnotationForFile]);
+    const { files: f, focusedFileIndex } = storeApi.getState();
+    if (!f[focusedFileIndex]) return;
+    handleAddAnnotationForFile(f[focusedFileIndex].path, type, text, suggestedCode, originalCode, conventionalLabel, decorations, tokenMeta);
+  }, [storeApi, handleAddAnnotationForFile]);
 
   const handleAddFileComment = useCallback((text: string) => {
-    const activeFile = files[activeFileIndex];
+    const { files: f, focusedFileIndex } = storeApi.getState();
+    const activeFile = f[focusedFileIndex];
     const trimmed = text.trim();
     if (!activeFile || !trimmed) return;
 
@@ -967,7 +966,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
     };
 
     storeApi.getState().addAnnotation(withPRContext(newAnnotation));
-  }, [storeApi, files, activeFileIndex, identity, withPRContext]);
+  }, [storeApi, identity, withPRContext]);
 
   const handleAddFileCommentForFile = useCallback((filePath: string, text: string) => {
     const trimmed = text.trim();
@@ -998,31 +997,32 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
     conventionalLabel?: ConventionalLabel | null,
     decorations?: ConventionalDecoration[],
   ) => {
-    const ann = allAnnotationsRef.current.find(a => a.id === id);
     const updates: Partial<CodeAnnotation> = {
       ...(text !== undefined && { text }),
       ...(suggestedCode !== undefined && { suggestedCode }),
       ...(originalCode !== undefined && { originalCode }),
-      // null clears the label; undefined means "not provided, keep existing"
       ...(conventionalLabel !== undefined && { conventionalLabel: conventionalLabel ?? undefined }),
       ...(decorations !== undefined && { decorations }),
     };
-    if (ann?.source && externalAnnotations.some(e => e.id === id)) {
+    const state = storeApi.getState();
+    const ann = selectAllAnnotations(state).find(a => a.id === id);
+    if (ann?.source && state.externalAnnotations.some(e => e.id === id)) {
       updateExternalAnnotation(id, updates);
       return;
     }
-    storeApi.getState().editAnnotation(id, updates);
-  }, [storeApi, updateExternalAnnotation, externalAnnotations]);
+    state.editAnnotation(id, updates);
+  }, [storeApi, updateExternalAnnotation]);
 
   const handleDeleteAnnotation = useCallback((id: string) => {
-    const ann = allAnnotationsRef.current.find(a => a.id === id);
-    if (ann?.source && externalAnnotations.some(e => e.id === id)) {
+    const state = storeApi.getState();
+    const ann = selectAllAnnotations(state).find(a => a.id === id);
+    if (ann?.source && state.externalAnnotations.some(e => e.id === id)) {
       deleteExternalAnnotation(id);
-      if (selectedAnnotationId === id) storeApi.getState().selectAnnotation(null);
+      if (state.selectedAnnotationId === id) state.selectAnnotation(null);
       return;
     }
-    storeApi.getState().deleteAnnotation(id);
-  }, [storeApi, selectedAnnotationId, deleteExternalAnnotation, externalAnnotations]);
+    state.deleteAnnotation(id);
+  }, [storeApi, deleteExternalAnnotation]);
 
   // Handle identity change - update author on existing annotations
   const handleIdentityChange = useCallback((oldIdentity: string, newIdentity: string) => {
@@ -1112,7 +1112,8 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
       if (!isVisible()) return;
       if (e.metaKey || e.ctrlKey || e.shiftKey || isTypingTarget(e.target)) return;
       if (!isDiffPanelActive) return;
-      const filePath = files[activeFileIndex]?.path;
+      const { files: f, focusedFileIndex } = storeApi.getState();
+      const filePath = f[focusedFileIndex]?.path;
       if (!filePath) return;
 
       if (e.key === 'v') {
@@ -1125,7 +1126,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [files, activeFileIndex, isDiffPanelActive, handleToggleViewed, canStageFiles, stageFile]);
+  }, [storeApi, isDiffPanelActive, handleToggleViewed, canStageFiles, stageFile]);
 
   // Shared function: apply a PR response (used by both initial load and PR switch)
   function applyPRResponse(data: PRSessionUpdate & {
@@ -1138,13 +1139,13 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
     dockApi?.getPanel(REVIEW_DIFF_PANEL_ID)?.api.close();
     needsInitialDiffPanel.current = true;
     setDiffData(prev => prev ? { ...prev, rawPatch: data.rawPatch, gitRef: data.gitRef } : prev);
-    setFiles(nextFiles);
+    storeApi.getState().setFiles(nextFiles);
     if (isPRSwitch) {
-      setActiveFileIndex(0);
+      storeApi.getState().setFocusedFile(0);
     } else {
       const currentFile = files[activeFileIndex];
       const preserved = currentFile ? nextFiles.findIndex(f => f.path === currentFile.path) : -1;
-      setActiveFileIndex(preserved >= 0 ? preserved : 0);
+      storeApi.getState().setFocusedFile(preserved >= 0 ? preserved : 0);
     }
     storeApi.getState().setPendingSelection(null);
     updatePRSession({
@@ -1204,20 +1205,20 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
         // If the current file was removed (whitespace-only), retarget the
         // dock panel to the first remaining file.
         setDiffData(prev => prev ? { ...prev, rawPatch: data.rawPatch, gitRef: data.gitRef } : prev);
-        setFiles(nextFiles);
+        storeApi.getState().setFiles(nextFiles);
         const currentPath = files[activeFileIndex]?.path;
         const nextIdx = currentPath ? nextFiles.findIndex(f => f.path === currentPath) : -1;
         if (nextIdx !== -1) {
-          setActiveFileIndex(nextIdx);
+          storeApi.getState().setFocusedFile(nextIdx);
         } else if (nextFiles.length > 0) {
-          setActiveFileIndex(0);
+          storeApi.getState().setFocusedFile(0);
           openDiffFile(nextFiles[0].path);
         }
       } else {
         dockApi?.getPanel(REVIEW_DIFF_PANEL_ID)?.api.close();
         needsInitialDiffPanel.current = true;
         setDiffData(prev => prev ? { ...prev, rawPatch: data.rawPatch, gitRef: data.gitRef, diffType: data.diffType } : prev);
-        setFiles(nextFiles);
+        storeApi.getState().setFiles(nextFiles);
         setDiffType(data.diffType);
         if (data.base) {
           setSelectedBase(data.base);
@@ -1250,7 +1251,7 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
             };
           });
         }
-        setActiveFileIndex(0);
+        storeApi.getState().setFocusedFile(0);
         storeApi.getState().setPendingSelection(null);
         resetStagedFiles();
       }
@@ -1336,21 +1337,22 @@ const ReviewApp: React.FC<{ __embedded?: boolean; headerLeft?: React.ReactNode; 
       return;
     }
 
-    const annotation = allAnnotations.find(a => a.id === id);
+    const state = storeApi.getState();
+    const annotation = selectAllAnnotations(state).find(a => a.id === id);
     if (!annotation) {
-      storeApi.getState().selectAnnotation(id);
+      state.selectAnnotation(id);
       return;
     }
 
-    if (!isAllFilesActive) {
-      const fileIndex = files.findIndex(f => f.path === annotation.filePath);
+    if (!state.isAllFilesActive) {
+      const fileIndex = state.files.findIndex(f => f.path === annotation.filePath);
       if (fileIndex !== -1) {
         handleFileSwitch(fileIndex);
       }
     }
 
-    storeApi.getState().selectAnnotation(id);
-  }, [storeApi, allAnnotations, files, isAllFilesActive, handleFileSwitch]);
+    state.selectAnnotation(id);
+  }, [storeApi, handleFileSwitch]);
 
   // Diff context bundled into local-mode feedback headers so the receiving
   // agent knows which diff the annotations are anchored to. Uses committedBase
