@@ -555,11 +555,12 @@ function normalizeDirectory(value: string | undefined): string | null {
   }
 }
 
-function buildEnv(extra: Record<string, string>): Record<string, string> {
+export function buildEnv(extra: Record<string, string>): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
     if (typeof value === "string") env[key] = value;
   }
+  delete env.BUN_BE_BUN;
   return { ...env, ...extra };
 }
 

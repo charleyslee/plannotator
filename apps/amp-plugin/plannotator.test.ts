@@ -4,6 +4,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
+  buildEnv,
   buildPlannotatorEnv,
   extractTextFromThreadMessage,
   findFirstPositionalArg,
@@ -209,6 +210,17 @@ describe("Amp Plannotator plugin helpers", () => {
       PLANNOTATOR_CWD: "/repo",
       PLANNOTATOR_READY_FILE: "/tmp/ready.jsonl",
     });
+  });
+
+  test("does not let Amp's Bun mode leak into the Plannotator binary", () => {
+    const originalBeBun = process.env.BUN_BE_BUN;
+
+    try {
+      process.env.BUN_BE_BUN = "1";
+      expect(buildEnv({ PLANNOTATOR_ORIGIN: "amp" }).BUN_BE_BUN).toBeUndefined();
+    } finally {
+      restoreEnv("BUN_BE_BUN", originalBeBun);
+    }
   });
 
   test("matches shared Plannotator data directory semantics", () => {
